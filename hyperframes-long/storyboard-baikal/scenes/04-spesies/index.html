@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <title>Beat 4 — Spesies</title>
+    <script src="./gsap.min.js"></script>
+    <style>
+      body { margin: 0; background: #0b0f14; color: white; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; }
+      .bg { position: absolute; inset: 0; background: linear-gradient(180deg, #111111 0%, #262626 60%, #111111 100%); }
+      .clip { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 36px; }
+      #num { margin: 0; font-size: 160px; font-weight: 800; letter-spacing: 6px; color: #ff6b6b; text-align: center; }
+      #sub { margin: 0; font-size: 42px; font-weight: 600; letter-spacing: 2px; color: #ffffff; text-align: center; }
+      .chips { display: flex; gap: 20px; }
+      .chip { font-size: 36px; font-weight: 700; letter-spacing: 2px; color: #111111; background: #ffd60a; border-radius: 16px; padding: 16px 30px; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-width="1080" data-height="1920" data-duration="6">
+      <div class="bg"></div>
+      <section id="main-clip" class="clip" data-start="0" data-duration="6">
+        <h1 id="num">1.700+</h1>
+        <p id="sub">SPESIES HIDUP DI SINI</p>
+        <div class="chips">
+          <span class="chip">ENDEMIK</span>
+          <span class="chip">2 DARI 3</span>
+        </div>
+      </section>
+    </div>
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo("#num", { opacity: 0 }, { opacity: 1, duration: 0.5 }, 0.2);
+      tl.fromTo("#sub", { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 0.8);
+      tl.fromTo(".chip", { scale: 0.6, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, stagger: 0.3, ease: "back.out(1.7)" }, 1.4);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
