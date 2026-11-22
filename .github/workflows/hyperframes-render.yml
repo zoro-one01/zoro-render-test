@@ -1,0 +1,45 @@
+name: HyperFrames render test
+
+on:
+  push:
+    paths:
+      - '.github/workflows/hyperframes-render.yml'
+      - 'hyperframes-test/**'
+  workflow_dispatch:
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install HyperFrames CLI
+        run: npm install -g hyperframes
+
+      - name: Ensure Chrome for rendering
+        run: hyperframes browser ensure
+
+      - name: Check usage (informational)
+        run: hyperframes usage --json || true
+
+      - name: Lint and validate composition
+        working-directory: hyperframes-test
+        run: hyperframes check || true
+
+      - name: Render 10s video
+        working-directory: hyperframes-test
+        run: hyperframes render . --workers 1 --quality draft --output hyperframes-10s.mp4
+
+      - name: Upload video
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperframes-10s
+          path: hyperframes-test/hyperframes-10s.mp4
+          retention-days: 1
