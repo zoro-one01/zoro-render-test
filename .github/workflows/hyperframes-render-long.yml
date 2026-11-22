@@ -1,0 +1,83 @@
+name: HyperFrames render long clip
+
+on:
+  push:
+    paths:
+      - '.github/workflows/hyperframes-render-long.yml'
+      - 'hyperframes-long/**'
+  workflow_dispatch:
+    inputs:
+      scenes_dir:
+        description: 'Folder berisi scene (tiap subfolder = 1 scene)'
+        default: 'hyperframes-long/scenes'
+        required: true
+      output:
+        description: 'Nama file MP4 hasil rakitan'
+        default: 'hyperframes-long-30s.mp4'
+        required: true
+      quality:
+        description: 'Kualitas render (draft/looks/delivery)'
+        default: 'draft'
+        required: true
+
+jobs:
+  render-long:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install HyperFrames CLI
+        run: npm install -g hyperframes
+
+      - name: Ensure Chrome for rendering
+        run: hyperframes browser ensure
+
+      - name: Check usage (informational)
+        run: hyperframes usage --json || true
+
+      - name: Render each scene
+        run: |
+          mkdir -p /tmp/scenes
+          i=0
+          for d in ${{ inputs.scenes_dir }}/*/; do
+            i=$((i + 1))
+            name=$(printf "%02d" $i)
+            echo "=== Scene $name: $d ==="
+            hyperframes check "$d" || true
+            hyperframes render "$d" --workers 1 --quality ${{ inputs.quality }} --output /tmp/scenes/$name.mp4
+          done
+          ls -la /tmp/scenes
+
+      - name: Assemble long clip (ffmpeg concat)
+        run: |
+          for f in /tmp/scenes/*.mp4; do echo "file '$f'"; done > /tmp/concat.txt
+          cat /tmp/concat.txt
+          ffmpeg -y -f concat -safe 0 -i /tmp/concat.txt -c:v libx264 -pix_fmt yuv420p -crf 18 -movflags +faststart "${{ inputs.output }}"
+          ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 "${{ inputs.output }}"
+
+      - name: Upload assembled video
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperframes-long
+          path: ${{ inputs.output }}
+          retention-days: 1
+
+      - name: Commit MP4 to repo (direct download, no ZIP)
+        run: |
+          git config user.name "zoro-one01"
+          git config user.email "ahkmad.persib1933@gmail.com"
+          mkdir -p renders
+          cp "${{ inputs.output }}" "renders/${{ inputs.output }}"
+          git add "renders/${{ inputs.output }}"
+          git commit -m "Add long render ${{ inputs.output }} [skip ci]" || echo "nothing to commit"
+          git push origin HEAD:main
+          echo "MP4 langsung: https://raw.githubusercontent.com/zoro-one01/zoro-render-test/main/renders/${{ inputs.output }}"
