@@ -32,9 +32,14 @@ Repo mromidev/claude-animated-shorts tidak menyertakan package.json
   React 18)
 - `react` + `react-dom` ^18.3.1
 - `@react-three/fiber` ^8.17.10 (fiber v8 = pasangan Remotion 4)
-- `@react-three/postprocessing` ^2.16.3 + `postprocessing` ^2.16.1
-- `three` ^0.180.0 — masih menyediakan `three/examples/jsm/...`
-  (dipakai build.ts + world.ts: BufferGeometryUtils, GLTFLoader)
+- `@react-three/postprocessing` ^2.19.1 + `postprocessing` ^6.32.1
+  (KOREKSI 23 Nov 02:43: tebakan awal `postprocessing@^2.16.1` SALAH —
+  run #1 gagal ETARGET karena lini 2.x postprocessing mentok di 2.3.1
+  dan tidak pernah sampai 2.16; pasangan yang benar, dicek ke registry
+  npm: @react-three/postprocessing 2.19.1 sendiri mendeklarasikan
+  dependency `postprocessing: ^6.32.1`. Tiga/fiber/Remotion lain
+  terverifikasi ada di registry: three 0.180.0, @types/three 0.180.0,
+  remotion/@remotion/three/@remotion/cli 4.0.545, fiber 8.x maks 8.18.0)
 - Node 22 di workflow; ffmpeg via apt; Chrome via
   `npx remotion browser ensure`
 
