@@ -54,5 +54,7 @@ jobs:
           cp hyperframes-test/hyperframes-10s.mp4 renders/hyperframes-10s.mp4
           git add renders/hyperframes-10s.mp4
           git commit -m "Add render hyperframes-10s.mp4 [skip ci]" || echo "nothing to commit"
-          git push origin HEAD:main
+          git fetch origin main
+          git rebase origin/main || git rebase --abort
+          git push origin HEAD:main || (git pull --rebase origin main && git push origin HEAD:main)
           echo "MP4 langsung: https://raw.githubusercontent.com/zoro-one01/zoro-render-test/main/renders/hyperframes-10s.mp4"
