@@ -4,7 +4,7 @@ Kurasi repo open-source yang cocok dengan pipeline repo ini: HyperFrames CLI + G
 
 Riset: 23 Nov 2026 (angka stars dari GitHub API saat riset, kecuali yang ditandai *). Repo yang sudah tidak aktif atau butuh GPU/bayar dicoret — lihat bagian bawah.
 
-## Daftar pendek (12 repo)
+## Daftar pendek (13 repo)
 
 | # | Repo | Stars | Lisensi | Peran di pipeline kami |
 |---|------|-------|---------|------------------------|
@@ -20,6 +20,7 @@ Riset: 23 Nov 2026 (angka stars dari GitHub API saat riset, kecuali yang ditanda
 | 10 | [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft) | 22.082 | Apache-2.0 | 124 kartu resep shot promo sinematik untuk Remotion |
 | 11 | [rea-video](https://github.com/JuneYaooo/rea-video) | 12.123 | Belum terverifikasi | Reverse-engineer video shot-by-shot — cocok untuk cron analisa harian |
 | 12 | [dotlottie-web](https://github.com/LottieFiles/dotlottie-web) | 953 | MIT | Player animasi vektor Lottie, bisa di-embed di komposisi HyperFrames |
+| 13 | [claude-animated-shorts](https://github.com/mromidev/claude-animated-shorts) | 4.570 | MIT (kode + dokumen; frame referensi hanya untuk studi gaya) | Skill Shorts animasi kartun 3D (three.js + Remotion): karakter 2D di dunia 3D, pipeline lengkap + template bridge + audio sintesis — **SUDAH DI-VENDOR** di `skills/claude-animated-shorts/` |
 
 Juga relevan: [Three.js](https://github.com/mrdoob/three.js) (~117 ribu*, MIT) sebagai sumber 3D di dalam komposisi — tapi berat untuk runner Actions, pakai seperlunya. Fondasi kami sendiri, [HyperFrames](https://github.com/heygen-com/hyperframes) (Apache-2.0), tercatat 88.161 stars.
 
@@ -43,6 +44,14 @@ Juga relevan: [Three.js](https://github.com/mrdoob/three.js) (~117 ribu*, MIT) s
 - Status: BELUM dipasang — butuh uji seekability dulu.
 - Rencana: `npm install animejs` di workflow, atau vendor `anime.min.js` ke folder proyek (seperti GSAP sekarang); tulis komposisi memakai timeline Anime.js; workflow render tidak berubah.
 - Risiko: GSAP adalah runtime yang didukung resmi HyperFrames — timeline Anime.js belum terbukti seekable/paused dengan benar di renderer; API v4 berbeda dari v3, kunci versinya bila dipakai.
+
+### 4. claude-animated-shorts (mromidev) — skill Shorts animasi kartun 3D, DI-VENDOR 23 Nov 2026
+- Status: **DI-VENDOR** di `skills/claude-animated-shorts/` (40 file, 844 KB). Lisensi MIT (kode + dokumen). Nama internal skill: `cartoon-3d-short`.
+- Isi: pipeline Shorts 55–70 detik "karakter 2D di dunia 3D" (three.js + Remotion, render lokal, tanpa AI video generator); template lengkap Shorts contoh "The Bridge That Fell for a Song" (`templates/bridge/`, 13 file); sintesis audio SFX + musik march + mix (`templates/audio/`); helper stills/sheet/QA (`templates/scripts/`); STYLE_BIBLE + 8 laporan terukur (`references/`).
+- Yang SENGAJA tidak di-vendor: `references/frames/` (38 JPG) + `references/sheets/` (20 JPG), ~16,7 MB — SKILL.md sendiri melarang upload/publish/send materi referensi itu ("private study material"). Detail + cara ambil dari sumber: lihat `skills/claude-animated-shorts/INSTALL_NOTE.md`.
+- Keamanan: 40 file cocok byte-size dengan upstream; scan statis bersih — satu-satunya proses luar adalah ffmpeg lokal (ukur loudness + ekstrak frame QA), list-form, tanpa shell, tanpa jaringan.
+- Cara pakai: butuh Remotion + `@remotion/three`, Node, Python 3 (+ numpy/scipy), ffmpeg; `REMOTION_TMP` di drive besar. Render di Actions BELUM teruji — uji dulu sebelum diandalkan.
+- Adaptasi Mangzoro: default skill berbahasa Inggris, tanpa caption, VO satu nada — perlu penyesuaian (VO Indonesia, subtitle karaoke, backsound per segmen) mengikuti `skills/hyperframes-composition-rules/SKILL.md` bila dipakai untuk channel.
 
 ## Rakit klip panjang
 - Jalur utama yang sudah jalan: render per scene → concat ffmpeg (workflow `hyperframes-render-long.yml`).
