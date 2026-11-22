@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <title>Scene 02 — Proses</title>
+    <script src="./gsap.min.js"></script>
+    <style>
+      body { margin: 0; background: #0b0f14; color: white; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; }
+      .bg { position: absolute; inset: 0; background: linear-gradient(180deg, #062a2a 0%, #0b6e6e 60%, #0e3a5d 100%); }
+      .clip { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 36px; }
+      #title { margin: 0; font-size: 110px; font-weight: 800; letter-spacing: 4px; color: #ffffff; text-align: center; line-height: 1.15; }
+      #title .line { display: block; }
+      #sub { margin: 0; font-size: 48px; font-weight: 600; letter-spacing: 8px; color: #ffd60a; text-align: center; }
+      .chips { display: flex; gap: 20px; }
+      .chip { font-size: 38px; font-weight: 700; letter-spacing: 2px; color: #062a2a; background: #ffffff; border-radius: 16px; padding: 16px 30px; }
+      .track { width: 70%; height: 14px; background: rgba(255, 255, 255, 0.25); border-radius: 999px; overflow: hidden; }
+      #bar { width: 100%; height: 100%; background: #ffd60a; border-radius: 999px; transform-origin: left center; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-width="1080" data-height="1920" data-duration="10">
+      <div class="bg"></div>
+      <section id="main-clip" class="clip" data-start="0" data-duration="10">
+        <h1 id="title"><span class="line">DARI HTML</span><span class="line">JADI MP4</span></h1>
+        <p id="sub">OTOMATIS DI GITHUB</p>
+        <div class="chips">
+          <span class="chip">HTML</span>
+          <span class="chip">FRAME</span>
+          <span class="chip">MP4</span>
+        </div>
+        <div class="track"><div id="bar"></div></div>
+      </section>
+    </div>
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo("#title", { opacity: 0 }, { opacity: 1, duration: 0.5 }, 0.2);
+      tl.fromTo("#sub", { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 0.8);
+      tl.fromTo(".chip", { scale: 0.6, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, stagger: 0.35, ease: "back.out(1.7)" }, 1.4);
+      tl.fromTo("#bar", { scaleX: 0 }, { scaleX: 1, duration: 9.4, ease: "none" }, 0.2);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
