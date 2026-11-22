@@ -10,6 +10,8 @@ on:
 jobs:
   render:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v6
 
@@ -43,3 +45,14 @@ jobs:
           name: hyperframes-10s
           path: hyperframes-test/hyperframes-10s.mp4
           retention-days: 1
+
+      - name: Commit MP4 to repo (direct download, no ZIP)
+        run: |
+          git config user.name "zoro-one01"
+          git config user.email "ahkmad.persib1933@gmail.com"
+          mkdir -p renders
+          cp hyperframes-test/hyperframes-10s.mp4 renders/hyperframes-10s.mp4
+          git add renders/hyperframes-10s.mp4
+          git commit -m "Add render hyperframes-10s.mp4 [skip ci]" || echo "nothing to commit"
+          git push origin HEAD:main
+          echo "MP4 langsung: https://raw.githubusercontent.com/zoro-one01/zoro-render-test/main/renders/hyperframes-10s.mp4"
