@@ -59,7 +59,13 @@ const Inner: React.FC<{ id: number; kit: Kit }> = ({ id, kit }) => {
     grade: new GradeEffect(GRADES.day, GRADE_STRENGTH.day),
     grain: new GrainEffect({ amount: 0.025, cellPx: 1.5 }), // film grain, OFF by default (inputProps post.grain): the reference measures no grain and it quadruples the file size
   }), [camera, scene]);
-  useEffect(() => () => fx.ink.dispose(), [fx]);
+  // InkPass cleanup must be guarded: at the first crossfade unmount (frame 68)
+  // `fx.ink.dispose` is NOT a function here (observed in Actions run #2 and
+  // reproduced locally), even though InkPass defines dispose() — the method is
+  // gone by the time this cleanup runs. Skipping it leaks one InkPass's GPU
+  // targets per crossfade (4 in the whole short); the render process is
+  // short-lived, so that is acceptable. Do NOT "fix" this back to a bare call.
+  useEffect(() => () => { fx.ink.dispose?.(); }, [fx]);
   // EffectComposer types its children as ReactElement (not ReactNode), so no
   // conditional nulls: build the child list imperatively instead.
   const post = useMemo(() => {
