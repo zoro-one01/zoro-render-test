@@ -114,3 +114,22 @@ remotion-aneyoshi/
   render pertama lolos?
 - VO Indonesia menyusul (jalur Chrome user, seperti Baikal) — bukan bagian
   tugas ini.
+
+## Fix run #1 (23 Nov 2026, setelah run Actions #1 GAGAL)
+- Run #1 (45104067837, 10:09 WIB): gagal di step "Render test clip" — "Rendered
+  0/150", lalu "Error: Timed out evaluating page function" (puppeteer-evaluate).
+  Log menunjukkan 22 baris 404 untuk `public/aneyoshi/kenney/*.glb` sebelum timeout.
+- Penyebab: `useKit()` di Aneyoshi.tsx memanggil `delayRender("aneyoshi kit")`
+  dan `AneyoshiShort` mengembalikan `null` sampai `loadKit()` selesai. `loadKit()`
+  menembak 11 `GLTFLoader.loadAsync` ke file yang TIDAK ADA (public/ kosong by
+  design) — dan frame pertama tidak pernah dievaluasi sampai janji itu selesai.
+- Perbaikan (3 file): (1) `world.ts`: `loadKit()` kini langsung `Promise.resolve({})`
+  — runtime kit memang sudah `{}` (semua GLB 404 lalu ter-filter), jadi visual
+  tidak berubah; import GLTFLoader/staticFile dihapus. (2) `Aneyoshi.tsx`: `useKit()`
+  mengembalikan `EMPTY_KIT` tanpa delayRender; guard `if (!kit) return null`
+  dihapus. (3) Workflow: render ditambah `--timeout 180000` (stills lokal dulu
+  sempat timeout di default 30 dtk; f1000 butuh 180 dtk).
+- Verifikasi lokal pasca-fix (23 Nov 10:31): `npx tsc --noEmit` bersih; still
+  frame 30 scale 0.5 ter-render 1/1 (`/tmp/aneyoshi-fix-f30.png`, 357.195 byte —
+  identik dengan still f30 sebelumnya, visual tidak berubah).
+- Re-run: workflow dipicu ulang setelah upload perbaikan (run #2).
