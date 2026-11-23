@@ -1,10 +1,10 @@
-name: Remotion Aneyoshi test render
+name: Remotion Aneyoshi render (test + segmen penuh)
 
 on:
   workflow_dispatch:
     inputs:
       seconds:
-        description: 'Durasi render (detik, dari frame 0)'
+        description: 'Durasi render (detik, dari start_frame; diabaikan bila end_frame diisi)'
         default: '5'
         required: true
       scale:
@@ -15,6 +15,14 @@ on:
         description: 'Nama file MP4 hasil'
         default: 'aneyoshi-test-5s.mp4'
         required: true
+      start_frame:
+        description: 'Frame awal (0 = dari awal; untuk render segmen penuh)'
+        default: '0'
+        required: false
+      end_frame:
+        description: 'Frame akhir inklusif (kosong = start + seconds*30 - 1)'
+        default: ''
+        required: false
 
 jobs:
   render-test:
@@ -53,15 +61,17 @@ jobs:
           TMP: ${{ github.workspace }}/remotion-tmp
         run: |
           mkdir -p "$REMOTION_TMP"
-          END=$((DURATION_SEC * 30 - 1))
-          echo "Rendering frames 0-$END (scale $SCALE)"
-          npx remotion render src/index.ts AneyoshiShort "$OUTPUT" --codec h264 --crf 16 --scale "$SCALE" --frames "0-$END" --timeout 180000
+          START="${{ inputs.start_frame || '0' }}"
+          END_INPUT="${{ inputs.end_frame }}"
+          if [ -n "$END_INPUT" ]; then END="$END_INPUT"; else END=$((START + DURATION_SEC * 30 - 1)); fi
+          echo "Rendering frames $START-$END (scale $SCALE)"
+          npx remotion render src/index.ts AneyoshiShort "$OUTPUT" --codec h264 --crf 16 --scale "$SCALE" --frames "$START-$END" --timeout 180000
           ffprobe -v error -show_entries stream=codec_name,width,height -show_entries format=duration -of default=noprint_wrappers=1 "$OUTPUT"
 
       - name: Upload test video
         uses: actions/upload-artifact@v4
         with:
-          name: aneyoshi-test
+          name: ${{ env.OUTPUT }}
           path: remotion-aneyoshi/${{ env.OUTPUT }}
           retention-days: 1
 
@@ -72,7 +82,7 @@ jobs:
           mkdir -p renders
           cp "remotion-aneyoshi/${{ env.OUTPUT }}" "renders/${{ env.OUTPUT }}"
           git add "renders/${{ env.OUTPUT }}"
-          git commit -m "Add Aneyoshi test ${{ env.OUTPUT }} [skip ci]" || echo "nothing to commit"
+          git commit -m "Add Aneyoshi ${{ env.OUTPUT }} [skip ci]" || echo "nothing to commit"
           git fetch origin main
           git rebase origin/main || git rebase --abort
           git push origin HEAD:main || (git pull --rebase origin main && git push origin HEAD:main)
