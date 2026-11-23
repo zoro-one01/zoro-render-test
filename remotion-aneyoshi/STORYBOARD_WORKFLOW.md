@@ -86,6 +86,20 @@ lagi. **Jangan render penuh sebelum still disetujui.**
 
 ## Riwayat latihan
 
-- 23 Nov 2026: workflow storyboard + full dibuat (latihan pertama).
-  Storyboard 25 still + uji matrix 3 segmen scale 0.25 (preview full).
-  Hasil latihan: (diisi setelah run pertama).
+- 23 Nov 2026 16:48: workflow storyboard + full dibuat (latihan pertama).
+  Storyboard: SUKSES 2m 3s, 26 still ter-commit (commit a80d49b).
+  Review 4 still: batu bagus; s02a terlemah (karakter kaki lidi, laut
+  coretan); s09b wajah datar, rumput terlalu hijau; s13c framing bermasalah
+  (atap gelap ~60% frame). Full-test (3 segmen, scale 0.25): SELESAI SUKSES
+  18:12, wall 84 mnt (BUKAN ~10 mnt) — preview 270x480 95,7 dtk 4,68 MB,
+  sambungan mulus. Kecepatan/frame scale 0.25 + concurrency 4 SAMA dengan
+  scale 0.5 + concurrency 2 (~3-5 dtk/frame); janji wall 12-15 mnt BELUM
+  terbukti. Langkah berikut: benchmark concurrency 1/2/4 + uji
+  multisampling=0.
+- 23 Nov 2026 19:04: benchmark concurrency 1/2/4 (150 frame shot 6 gempa,
+  scale 0.5): c1 852 dtk, c2 871 dtk, c4 596 dtk → pemenang concurrency 4
+  (~30% lebih cepat dari default 2). Run berstatus Failure karena workflow
+  benchmark lupa install ffmpeg (ffprobe tidak ditemukan) — render-nya
+  sendiri selesai 150/150 frame; sudah diperbaiki. Workflow full sudah
+  memakai concurrency 4, jadi tidak ada perubahan. Proyeksi wall 12 segmen
+  scale 0.5: ~12-16 mnt (belum diuji penuh).
