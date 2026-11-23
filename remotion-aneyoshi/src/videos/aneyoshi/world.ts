@@ -4,8 +4,6 @@
 // (story.ts). update(id, f, camera) poses everything for shot `id` at frame f
 // (pure function of id + f).
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { staticFile } from "remotion";
 import { V, lam, buildVillage, Kit, Ray, kitClone } from "./build";
 import { ctex, waterNear, waterFar, cloudHD } from "./paint";
 import { LIGHTS, LOOK, LightPreset } from "./lights";
@@ -15,19 +13,13 @@ import { Pool, Actor, Fx, stage } from "./cast";
 import { FPS, D0, SHOTS, wavePose, camAt, FOREGROUND, ShotDef } from "./story";
 
 // ---------------- assets ----------------
-// Only the cartoon-vegetation names are listed: prop()/kitClone() draw those
-// procedurally (build.ts VEG), so an empty public/ folder still renders the forest.
-const KENNEY = ["tree_oak", "tree_default", "tree_detailed", "tree_fat", "tree-high-round", "tree", "tree_cone",
-  "plant_bushLarge", "plant_bushDetailed", "plant_bush", "hedge"];
-let kitP: Promise<Kit> | null = null;
-export const loadKit = () => {
-  if (!kitP) {
-    const loader = new GLTFLoader();
-    kitP = Promise.all(KENNEY.map((n) => loader.loadAsync(staticFile(`aneyoshi/kenney/${n}.glb`)).then((g) => [n, g.scene] as const).catch(() => [n, null] as const)))
-      .then((list) => Object.fromEntries(list.filter((e) => e[1]).map(([n, s]) => [n, s!])) as Kit);
-  }
-  return kitP;
-};
+// No GLB kit loading: public/ is empty BY DESIGN (vegetation is procedural,
+// build.ts VEG) and the runtime kit was already {} — every GLB 404'd and was
+// filtered out. The old loader fired 11 doomed fetches and gated the first
+// frame behind delayRender, which timed out the Actions render (run #1:
+// "Rendered 0/150", then "Timed out evaluating page function"). Resolving an
+// empty kit immediately changes nothing visually and removes the wait.
+export const loadKit = (): Promise<Kit> => Promise.resolve({} as Kit);
 
 /** sun disc (solid, soft rim) and the flat golden halo (lighting.md 6 / depth.md 6.4: r50 13-26 % of the frame width) */
 const discTex = () => ctex("sunDisc", 128, 128, (g) => {
