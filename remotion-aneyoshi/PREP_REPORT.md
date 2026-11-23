@@ -133,3 +133,21 @@ remotion-aneyoshi/
   frame 30 scale 0.5 ter-render 1/1 (`/tmp/aneyoshi-fix-f30.png`, 357.195 byte —
   identik dengan still f30 sebelumnya, visual tidak berubah).
 - Re-run: workflow dipicu ulang setelah upload perbaikan (run #2).
+
+## Fix run #2 (23 Nov 2026, setelah run Actions #2 GAGAL di frame 68/150)
+- Run #2 (45106758348, 10:41 WIB): render jalan sampai 68/150 frame (45%) lalu
+  gagal: `TypeError: fx.ink.dispose is not a function` saat merender frame 68.
+  Frame 68 = momen layer crossfade pertama dilepas (XFADE shot 2: frame 62–67,
+  hilang di 68) — cleanup `useEffect(() => () => fx.ink.dispose(), [fx])` di
+  Aneyoshi.tsx jalan saat ShotView "over" unmount.
+- Penyelidikan: InkPass DOES define `override dispose()` (ink.ts:370) dan method
+  itu ADA di bundle hasil compile (bundle.js:101801); `tsc` bersih; versi
+  postprocessing lokal = lock = Actions (6.39.6, tidak ada drift). Penyebab
+  persis mengapa method hilang saat cleanup tetap tidak teridentifikasi
+  (console.log diagnostik dari page tidak diteruskan CLI Remotion).
+- Perbaikan: cleanup dijadikan `fx.ink.dispose?.()` (guard) + komentar penjelas.
+  Diverifikasi lokal: render frame 66–68 (melewati transisi gagal) SELESAI
+  exit 0, MP4 valid (h264 540×960, 3 frame, 0,1 dtk) — sebelumnya gagal di
+  frame 68 dengan error yang sama. Kebocoran: 1 InkPass per crossfade (4 total)
+  tidak di-dispose; dapat diterima karena proses render pendek.
+- Re-run: workflow dipicu ulang setelah upload perbaikan (run #3).
