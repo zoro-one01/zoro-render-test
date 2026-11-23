@@ -1,0 +1,79 @@
+name: Remotion Aneyoshi benchmark (concurrency 1/2/4)
+
+# Benchmark: render 150 frame YANG SAMA (shot 6 gempa, frame 1037-1186)
+# dengan concurrency 1, 2, dan 4 secara paralel, lalu bandingkan durasi.
+# Semua flag lain SAMA dengan workflow full (scale, gl, multiprocess,
+# jpeg-quality, preset, crf) supaya yang diukur hanya concurrency.
+# Hasil dibaca dari log tiap job ("BENCHMARK concurrency=... duration=...s")
+# dan dari waktu job di halaman Actions. Tidak ada file yang di-commit.
+
+on:
+  workflow_dispatch:
+    inputs:
+      frames:
+        description: 'Rentang frame yang di-benchmark (default: shot 6 gempa)'
+        default: '1037-1186'
+        required: true
+      scale:
+        description: 'Skala output (0.5 = 540x960)'
+        default: '0.5'
+        required: true
+
+jobs:
+  bench:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        concurrency: [1, 2, 4]
+    env:
+      SCALE: ${{ inputs.scale || '0.5' }}
+      FRAMES: ${{ inputs.frames || '1037-1186' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cache node_modules (+ Chrome Headless Shell)
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: remotion-aneyoshi/node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('remotion-aneyoshi/package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: remotion-aneyoshi
+        run: npm install --no-audit --no-fund
+
+      - name: Ensure Chrome for Remotion
+        working-directory: remotion-aneyoshi
+        run: npx remotion browser ensure
+
+      - name: Render benchmark
+        working-directory: remotion-aneyoshi
+        env:
+          REMOTION_TMP: ${{ github.workspace }}/remotion-tmp
+          TMPDIR: ${{ github.workspace }}/remotion-tmp
+          TEMP: ${{ github.workspace }}/remotion-tmp
+          TMP: ${{ github.workspace }}/remotion-tmp
+        run: |
+          mkdir -p "$REMOTION_TMP"
+          START=$(date +%s)
+          echo "Benchmark frames $FRAMES scale $SCALE concurrency ${{ matrix.concurrency }}"
+          npx remotion render src/index.ts AneyoshiShort "bench-c${{ matrix.concurrency }}.mp4" --codec h264 --crf 18 --scale "$SCALE" --frames "$FRAMES" --concurrency ${{ matrix.concurrency }} --gl swangle --enable-multiprocess-on-linux --jpeg-quality 70 --x264-preset veryfast --timeout 180000
+          END=$(date +%s)
+          echo "BENCHMARK concurrency=${{ matrix.concurrency }} frames=$FRAMES scale=$SCALE duration=$((END-START))s"
+          ffprobe -v error -show_entries stream=codec_name,width,height -show_entries format=duration -of default=noprint_wrappers=1 "bench-c${{ matrix.concurrency }}.mp4"
+
+      - name: Upload benchmark clip
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-c${{ matrix.concurrency }}
+          path: remotion-aneyoshi/bench-c${{ matrix.concurrency }}.mp4
+          retention-days: 1
