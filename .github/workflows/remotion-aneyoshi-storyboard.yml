@@ -1,0 +1,106 @@
+name: Remotion Aneyoshi storyboard (still per camera setup)
+
+# Storyboard-first: render SATU still per camera setup (bukan per shot),
+# supaya tiap framing bisa di-review SEBELUM render video penuh.
+# Still dirender paralel (satu job per still, ~30 dtk/still scale 0.5)
+# lalu di-commit ke storyboard/aneyoshi/ agar bisa dilihat di repo.
+# Ubah daftar frame lewat input `frames` (JSON) bila shot berubah.
+
+on:
+  workflow_dispatch:
+    inputs:
+      frames:
+        description: 'Daftar camera setup sebagai JSON: [{"key":"s01a","frame":21}, ...]'
+        default: '[{"key":"s01a","frame":21},{"key":"s01b","frame":66},{"key":"s02a","frame":142},{"key":"s02b","frame":229},{"key":"s03a","frame":315},{"key":"s03b","frame":380},{"key":"s04a","frame":526},{"key":"s04b","frame":631},{"key":"s05a","frame":842},{"key":"s05b","frame":920},{"key":"s06a","frame":1102},{"key":"s06b","frame":1185},{"key":"s07a","frame":1345},{"key":"s07b","frame":1415},{"key":"s08a","frame":1536},{"key":"s08b","frame":1598},{"key":"s09a","frame":1724},{"key":"s09b","frame":1800},{"key":"s10a","frame":2013},{"key":"s11a","frame":2187},{"key":"s11b","frame":2268},{"key":"s12a","frame":2420},{"key":"s12b","frame":2491},{"key":"s13a","frame":2641},{"key":"s13b","frame":2727},{"key":"s13c","frame":2825}]'
+        required: true
+      scale:
+        description: 'Skala still (0.5 = 540x960)'
+        default: '0.5'
+        required: true
+
+jobs:
+  still:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shot: ${{ fromJSON(inputs.frames) }}
+    env:
+      SCALE: ${{ inputs.scale || '0.5' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cache node_modules (+ Chrome Headless Shell)
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: remotion-aneyoshi/node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('remotion-aneyoshi/package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: remotion-aneyoshi
+        run: npm install --no-audit --no-fund
+
+      - name: Ensure Chrome for Remotion
+        working-directory: remotion-aneyoshi
+        run: npx remotion browser ensure
+
+      - name: Render still
+        working-directory: remotion-aneyoshi
+        env:
+          REMOTION_TMP: ${{ github.workspace }}/remotion-tmp
+          TMPDIR: ${{ github.workspace }}/remotion-tmp
+          TEMP: ${{ github.workspace }}/remotion-tmp
+          TMP: ${{ github.workspace }}/remotion-tmp
+        run: |
+          mkdir -p "$REMOTION_TMP"
+          FRAME=$(printf "%04d" "${{ matrix.shot.frame }}")
+          echo "Still ${{ matrix.shot.key }} frame ${{ matrix.shot.frame }} (scale $SCALE)"
+          npx remotion still src/index.ts AneyoshiShort "still-${{ matrix.shot.key }}-f${FRAME}.jpg" --frame "${{ matrix.shot.frame }}" --scale "$SCALE" --image-format jpeg --gl swangle --timeout 180000
+          ls -la "still-${{ matrix.shot.key }}-f${FRAME}.jpg"
+
+      - name: Upload still
+        uses: actions/upload-artifact@v4
+        with:
+          name: still-${{ matrix.shot.key }}
+          path: remotion-aneyoshi/still-${{ matrix.shot.key }}-*.jpg
+          retention-days: 7
+
+  commit:
+    needs: still
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Clear old stills
+        run: rm -f storyboard/aneyoshi/*.jpg || true
+
+      - name: Download stills
+        uses: actions/download-artifact@v4
+        with:
+          pattern: still-*
+          merge-multiple: true
+          path: storyboard/aneyoshi
+
+      - name: Commit stills
+        run: |
+          git config user.name "zoro-one01"
+          git config user.email "ahkmad.persib1933@gmail.com"
+          ls -la storyboard/aneyoshi/
+          git add storyboard/aneyoshi/
+          git commit -m "Storyboard Aneyoshi: still per camera setup [skip ci]" || echo "nothing to commit"
+          git fetch origin main
+          git rebase origin/main || git rebase --abort
+          git push origin HEAD:main || (git pull --rebase origin main && git push origin HEAD:main)
+          echo "Storyboard: https://github.com/zoro-one01/zoro-render-test/tree/main/storyboard/aneyoshi"

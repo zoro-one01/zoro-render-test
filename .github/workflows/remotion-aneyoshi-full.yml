@@ -1,0 +1,145 @@
+name: Remotion Aneyoshi render (full, matrix + auto-stitch)
+
+# Render penuh SATU kali dispatch: video dipecah jadi N segmen paralel
+# (satu job per segmen), lalu satu job stitch menjahit + commit MP4 final.
+# Optimasi: cache node_modules (+ Chrome Headless Shell), concurrency 4,
+# --gl=swangle (wajib di runner tanpa GPU), encode flags hemat.
+# TOTAL frame dibaca dari story.ts (export const TOTAL) — bukan hardcode.
+# Pakai workflow ini HANYA setelah storyboard disetujui (lihat STORYBOARD_WORKFLOW.md).
+
+on:
+  workflow_dispatch:
+    inputs:
+      scale:
+        description: 'Skala output (0.25 = preview 270x480, 0.5 = 540x960, 1 = 1080x1920)'
+        default: '0.5'
+        required: true
+      segments:
+        description: 'Jumlah segmen paralel (3 = uji cepat, 12 = penuh)'
+        default: '12'
+        required: true
+      output:
+        description: 'Nama file MP4 final'
+        default: 'aneyoshi-full.mp4'
+        required: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.make.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - id: make
+        run: |
+          TOTAL=$(grep -oP 'export const TOTAL = \K[0-9]+' remotion-aneyoshi/src/videos/aneyoshi/story.ts)
+          N="${{ inputs.segments || '12' }}"
+          python3 - "$TOTAL" "$N" <<'EOF'
+          import json, math, os, sys
+          total = int(sys.argv[1]); n = int(sys.argv[2])
+          size = math.ceil(total / n)
+          segs = [{"id": f"{i+1:02d}", "start": i*size, "end": min((i+1)*size - 1, total - 1)} for i in range(n)]
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write("matrix=" + json.dumps(segs) + "\n")
+          print(f"TOTAL={total} segments={n} size={size}")
+          print(json.dumps(segs))
+          EOF
+
+  render:
+    needs: plan
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        segment: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      SCALE: ${{ inputs.scale || '0.5' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cache node_modules (+ Chrome Headless Shell)
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: remotion-aneyoshi/node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('remotion-aneyoshi/package-lock.json') }}
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: remotion-aneyoshi
+        run: npm install --no-audit --no-fund
+
+      - name: Ensure Chrome for Remotion
+        working-directory: remotion-aneyoshi
+        run: npx remotion browser ensure
+
+      - name: Render segment
+        working-directory: remotion-aneyoshi
+        env:
+          REMOTION_TMP: ${{ github.workspace }}/remotion-tmp
+          TMPDIR: ${{ github.workspace }}/remotion-tmp
+          TEMP: ${{ github.workspace }}/remotion-tmp
+          TMP: ${{ github.workspace }}/remotion-tmp
+        run: |
+          mkdir -p "$REMOTION_TMP"
+          echo "Rendering segment ${{ matrix.segment.id }} frames ${{ matrix.segment.start }}-${{ matrix.segment.end }} (scale $SCALE)"
+          npx remotion render src/index.ts AneyoshiShort "seg-${{ matrix.segment.id }}.mp4" --codec h264 --crf 18 --scale "$SCALE" --frames "${{ matrix.segment.start }}-${{ matrix.segment.end }}" --concurrency 4 --gl swangle --enable-multiprocess-on-linux --jpeg-quality 70 --x264-preset veryfast --timeout 180000
+          ffprobe -v error -show_entries stream=codec_name,width,height -show_entries format=duration -of default=noprint_wrappers=1 "seg-${{ matrix.segment.id }}.mp4"
+
+      - name: Upload segment
+        uses: actions/upload-artifact@v4
+        with:
+          name: segment-${{ matrix.segment.id }}
+          path: remotion-aneyoshi/seg-${{ matrix.segment.id }}.mp4
+          retention-days: 1
+
+  stitch:
+    needs: render
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    timeout-minutes: 30
+    env:
+      OUTPUT: ${{ inputs.output || 'aneyoshi-full.mp4' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Download segment artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: segment-*
+          merge-multiple: true
+          path: segments
+
+      - name: Stitch + commit final MP4
+        run: |
+          git config user.name "zoro-one01"
+          git config user.email "ahkmad.persib1933@gmail.com"
+          ls -la segments/
+          : > list.txt
+          for f in $(ls segments/seg-*.mp4 | sort); do echo "file '$f'" >> list.txt; done
+          cat list.txt
+          ffmpeg -y -v error -f concat -safe 0 -i list.txt -c copy "$OUTPUT"
+          ffprobe -v error -show_entries stream=codec_name,width,height -show_entries format=duration,size -of default=noprint_wrappers=1 "$OUTPUT"
+          mkdir -p renders
+          cp "$OUTPUT" "renders/$OUTPUT"
+          git add "renders/$OUTPUT"
+          git commit -m "Add Aneyoshi $OUTPUT (matrix render) [skip ci]" || echo "nothing to commit"
+          git fetch origin main
+          git rebase origin/main || git rebase --abort
+          git push origin HEAD:main || (git pull --rebase origin main && git push origin HEAD:main)
+          echo "MP4 langsung: https://raw.githubusercontent.com/zoro-one01/zoro-render-test/main/renders/$OUTPUT"
