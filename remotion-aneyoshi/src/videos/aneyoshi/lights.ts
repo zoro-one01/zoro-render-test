@@ -19,7 +19,7 @@ export const LIGHTS: Record<"day" | "golden", LightPreset> = {
     charTint: [1.0, 0.94, 0.92], charShade: 0.86, charGrad: 0.07, bodyGrad: 0.2, sideTint: [0.92, 0.90, 0.96],
     blob: [0.62, 0.58, 0.58], actorShadow: false,
     top: "#3e7fd2", hor: "#b8d0ec", skyCurve: [0.0, 0.5, 0.6], fog: "#b8d0ec", fogNear: 25, fogFar: 300, sunDisc: "#000000",
-    sunCol: "#fff3e0", sunI: 2.8, sky: "#dcecff", ground: "#b49a78", hemiI: 0.55,
+    sunCol: "#fff3e0", sunI: 2.4, sky: "#dcecff", ground: "#b49a78", hemiI: 0.85, // v2: softer sun + more fill for real Lambert shading (was 2.8 / 0.55); v2b: hemi 0.85 lifts shaded faces (stone, facades)
     bias: -0.00025, normalBias: 0.015,
   },
   golden: {
@@ -28,7 +28,7 @@ export const LIGHTS: Record<"day" | "golden", LightPreset> = {
     charTint: [1.0, 0.78, 0.56], charShade: 0.88, charGrad: 0.1, bodyGrad: 0.25, sideTint: [0.85, 0.80, 0.95],
     blob: [0.75, 0.74, 0.9], actorShadow: true,
     top: "#6a4f8c", hor: "#ffd08a", skyCurve: [0.05, 0.6, 1.0], fog: "#efb489", fogNear: 50, fogFar: 380, sunDisc: "#ffcf9e",
-    sunCol: "#ffab5e", sunI: 5.5, sky: "#d8b0b8", ground: "#8a6a60", hemiI: 0.5,
+    sunCol: "#ffab5e", sunI: 3.2, sky: "#d8b0b8", ground: "#8a6a60", hemiI: 0.8, // v2: the old 5.5 blew sun-facing walls to white under Lambert; low sun still gives long warm shadows at 3.2; v2b: hemi 0.8 lifts shaded facades
     bias: -0.0006, normalBias: 0.03,
   },
 };

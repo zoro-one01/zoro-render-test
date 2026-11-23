@@ -3,7 +3,7 @@
 // seeded side bulge + tilt), bean torsos, single-stroke limbs with ink-dot hands, a thick-thin plum outline weighted
 // away from the light, soft painted crescents, deadpan lidded eyes, no blush, no catchlights.
 // Design space 600 x 1000 units (soles at y = 975); the canvas transform scales it.
-export const INK = "#241726";
+export const INK = "#2e2118"; // v2: warm dark brown (was plum-black #241726) — softer outlines for the realistic look
 export const SKIN = "#ffe2c2";
 const WHITE = "#ffffff";
 const MOUTH = "#5a1e28";
@@ -71,7 +71,7 @@ export const townsfolk = (v = 0): Outfit => {
 
 export class Pen {
   g: CanvasRenderingContext2D;
-  ol = 12;
+  ol = 7; // v2: thinner default outline (was 12) — the thick ink rim was the most cartoonish element
   /** [angle, cx, cy] rotation about (cx, cy), optional post-translation [.., dx, dy] */
   rot: number[] | null = null;
   constructor(g: CanvasRenderingContext2D) { this.g = g; }
@@ -349,7 +349,7 @@ const hatBehind = (p: Pen, o: Outfit, H: Blob, cx: number, hc: number, light: nu
 };
 
 const hatOn = (p: Pen, o: Outfit, hp: P2[], H: Blob, cx: number, hc: number, light: number, seed: number, facing: number, side: boolean) => {
-  const W = 2 * H.a, HH = 2 * H.b, u = W / 100, crown = hc - H.b, ow = 0.85 * 5 * u;
+  const W = 2 * H.a, HH = 2 * H.b, u = W / 100, crown = hc - H.b, ow = 0.85 * 3.2 * u;
   const a = H.rot + rad(4 * (rnd(seed, 20) - 0.5)); // tilt with the head, +-2 deg extra
   const R = (pts: P2[]) => rotPts(pts, a, cx, hc);
   const sag = (yb: number, wb: number): P2[] => {
@@ -426,10 +426,14 @@ export type Arms = [P2[], P2[]];
 /** held prop; for the hammer the number is the strike 0 (raised) .. 1 (struck) */
 export type Prop = null | "icecream" | "shako" | ["hammer", number];
 
+// v2 proportions: smaller heads + longer torso/legs (was 3.5 heads, bean-head). Still stylised 2D cards
+// (a fully realistic 7.5-head figure does not fit the 600x1000 card), but now ~4.7 heads with a 0.36 m
+// head instead of 0.48 m. `a` shrinks so the world height stays ~1.68 m (tall = (1+torso+legs)*1.88a);
+// `tw` grows so the torso keeps its world width (tw*a stays ~92 units).
 const BUILD: Record<Build, { a: number; torso: number; legs: number; tw: number }> = {
-  adult: { a: 118, torso: 1.1, legs: 1.4, tw: 0.8 },
-  stout: { a: 118, torso: 1.15, legs: 1.32, tw: 0.92 },
-  kid: { a: 112, torso: 0.85, legs: 1.0, tw: 0.72 },
+  adult: { a: 88, torso: 1.6, legs: 2.1, tw: 1.05 },
+  stout: { a: 92, torso: 1.6, legs: 1.9, tw: 1.15 },
+  kid: { a: 84, torso: 1.35, legs: 1.7, tw: 0.95 },
 };
 
 export type FrontOpts = {
@@ -440,7 +444,7 @@ export type FrontOpts = {
 };
 
 const footStroke = (p: Pen, a: P2, b: P2, w: number, col: string) => {
-  if (col !== INK) p.stroke([a, b], w + 3, INK);
+  if (col !== INK) p.stroke([a, b], w + 1.2, INK); // v2: thin under-stroke (was w+3 — a heavy ink rim under every foot)
   p.stroke([a, b], w, col);
 };
 
@@ -454,8 +458,8 @@ export const bodyFront = (p: Pen, o: Outfit, opts: FrontOpts) => {
   const bob = mode === "march" ? 0.025 * tall * Math.cos(2 * two * phase) : mode === "stroll" ? 0.015 * tall * Math.cos(2 * two * phase) : 0;
   const torsoBot = mode === "sit" ? sole - 0.2 * HH : sole - Bd.legs * HH + bob;
   const chin = torsoBot - Bd.torso * HH, hc = chin - H.b, crown = hc - H.b, hipY = torsoBot - 0.12 * HH;
-  const thick = thickAngle(light), ow = 5 * u;
-  const legCol = mix(o.pants, INK, 0.55), armCol = mix(o.jacket, INK, 0.5), footCol = o.boots;
+  const thick = thickAngle(light), ow = 3.2 * u;
+  const legCol = mix(o.pants, INK, 0.25), armCol = mix(o.jacket, INK, 0.22), footCol = o.boots; // v2: limbs keep their cloth colour (was 55%/50% ink-darkened)
   const legW = 5.8 * u, footW = 7.5 * u;
   // ---- legs + feet (not rotated) ----
   p.rot = null;
@@ -629,9 +633,9 @@ export const bodySide = (p: Pen, o: Outfit, opts: SideOpts) => {
   const Bd = BUILD[o.build ?? "adult"], skin = o.skin ?? SKIN, two = Math.PI * 2, lid = lidOf(blink);
   const H: Blob = { ...headBlob(seed, Bd.a, 1), asym: 0.12, rot: rad(3 + 3 * (rnd(seed, 7) - 0.5)) };
   const W = 2 * H.a, HH = 2 * H.b, u = W / 100, sole = 975, ankY = sole - 4 * u;
-  const thick = thickAngle(light), ow = 5 * u;
+  const thick = thickAngle(light), ow = 3.2 * u;
   const legLen = (Bd.legs + 0.12) * HH - 4 * u, l1 = legLen / 2, l2 = legLen / 2;
-  const nearCol = mix(o.pants, INK, 0.55), farCol = mix(o.pants, INK, 0.75), footCol = o.boots;
+  const nearCol = mix(o.pants, INK, 0.25), farCol = mix(o.pants, INK, 0.45), footCol = o.boots;
   type LegS = { ank: P2; pitch: number; near: boolean };
   const legs: LegS[] = [];
   let hipY = ankY - legLen * 0.995, lean = 0, nearFwd = 0;
@@ -679,7 +683,7 @@ export const bodySide = (p: Pen, o: Outfit, opts: SideOpts) => {
   const T: Blob = { a: (o.build === "stout" ? 0.36 : 0.31) * W, b: 0.5 * (torsoBot - (chin - 0.25 * HH)), nTop: 2.2, nBot: 2.5, egg: 0.1, asym: 0.06,
     rot: 0, noise: 0.006, seed: seed + 7 };
   const tcx = 300 + 2 * u, tcy = torsoBot - T.b, tp = blobPts(tcx, tcy, T);
-  const armCol = mix(o.jacket, INK, 0.5), farArm = mix(o.jacket, INK, 0.68);
+  const armCol = mix(o.jacket, INK, 0.22), farArm = mix(o.jacket, INK, 0.35);
   const S: P2 = [tcx + 0.05 * T.a, chin + 0.14 * HH], aLen = 0.95 * HH;
   const swingArm = (ang: number): [P2, P2, P2] => {
     const e: P2 = [S[0] + Math.sin(ang) * aLen * 0.5, S[1] + Math.cos(ang) * aLen * 0.5], a2 = ang + rad(16) * Math.sign(ang || 1);

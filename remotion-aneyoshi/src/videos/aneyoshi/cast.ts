@@ -166,7 +166,7 @@ const LEAD = 2 / FPS;
 /** eyelid 0 open .. 1 shut. Reference: gaps 0.5-2.3 s, 4-frame blink half / shut / shut / half, plus a blink across
  *  every expression swap (the shut frames hide the swap) */
 const LID = [0.5, 1, 1, 0.5];
-const SWAPS: Record<number, number[]> = { 6: [22.8, 24.6], 9: [39.2] };
+const SWAPS: Record<number, number[]> = { 6: [34.6, 37.4], 9: [59.5] }; // tau, scaled x1.519 with the 95.7 s retiming
 const lidAt = (t: number, i: number, swaps: number[] = []) => {
   const f = Math.round(t * FPS);
   for (const ts of swaps) { const k = f - Math.round((ts - LEAD) * FPS) + 1; if (k >= 0 && k < 4) return LID[k]; }
@@ -223,7 +223,7 @@ const blob = (out: Stage, x: number, y: number, z: number, sc = 1, k = 1) => {
 export const KIMURA: Outfit = { jacket: "#4a5a6a", pants: "#3b3f52", boots: "#4a3426", hat: "hair", hair: "#8a8a8a", moustache: "#8a8a8a", build: "stout" };
 const SKINS = ["#ffe2c2", "#f5c9a0", "#ecd0b6", "#c99067"];
 const villager = (v: number): Outfit => {
-  const coats = ["#3f6fb5", "#8c3b4a", "#5d7a3a", "#b5653f", "#2f5f6a", "#7b5ac9"];
+  const coats = ["#4a5a6e", "#6e4a42", "#5a6a45", "#8a5f45", "#44555e", "#5a5468"]; // muted everyday coats (v2: the old palette was too saturated — bright blue, red, purple)
   return { jacket: coats[v % 6], pants: "#3b3f52", boots: "#4a3426", skin: SKINS[v % 4], hat: "hair", hair: ["#2a201a", "#3a2a1a", "#1a1a1a", "#4a3426"][v % 4] };
 };
 const survivor = (v: number): Outfit => {
@@ -323,7 +323,7 @@ const villagersAt = (id: number, t: number, cam: CamInfo, out: Stage) => {
 /** the 2011 crowd running uphill (shots 6-7): 8 villagers, 1.6 m/s up the road, expressions turn at the quake */
 const fleeAt = (id: number, t: number, cam: CamInfo, out: Stage) => {
   for (let i = 0; i < 8; i++) {
-    const z = -10 + (t - 22.8) * 1.6 + i * 1.8, x = (i % 4 - 1.5) * 1.3 + (hh(i, 3) - 0.5), y = groundY(z);
+    const z = -10 + (t - 34.6) * 1.6 + i * 1.8, x = (i % 4 - 1.5) * 1.3 + (hh(i, 3) - 0.5), y = groundY(z);
     const expr: Expr = id === 6 ? "nervous" : "shock";
     const who: Who = { i: i + 400, o: villager(i), okey: `v${i % 6}` };
     const phase = (t * 1.8 + i * 0.13) % 1;
@@ -343,7 +343,7 @@ const kimuraAt = (id: number, t: number, cam: CamInfo, out: Stage) => {
   // shot 9: beside the stone, facing the camera.
   const kx = id === 8 ? 1 : 3.4, kz = id === 8 ? 2 : 9;
   const y = groundY(kz);
-  const expr: Expr = id === 8 ? "relief" : t < 39.2 ? "relief" : "neutral";
+  const expr: Expr = id === 8 ? "relief" : t < 59.5 ? "relief" : "neutral";
   const view = id === 8 ? viewOf(cam, kx, kz, 0, 1) : { side: false, mirror: false };
   out.places.push(person(cam, { i: 500, o: KIMURA, okey: "kimura" }, kx, y, kz, view,
     { mode: "stand", expr, blink: lidAt(t, 500, SWAPS[id]) }, {}));

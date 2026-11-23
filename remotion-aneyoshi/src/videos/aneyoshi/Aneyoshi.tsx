@@ -1,11 +1,13 @@
-// "The Stone That Saved a Village": the Aneyoshi tsunami short in the flat-characters-in-a-3D-toon-world style.
-// One three.js world (world.ts) posed per frame from the story timeline (story.ts). Post chain (look-match pass):
-//   InkPass (world ink lines, own pass) -> lens blur pre + main (thin-lens DOF per shot from dofAt) ->
-//   [bloom (emissive only) + NEUTRAL tone mapping + colour grade] (one merged EffectPass), MSAA 4.
+// "The Stone That Saved a Village": the Aneyoshi tsunami short — v2 realistic look (2026-11-23):
+// ink outlines OFF by default, real Lambert lighting (no two-tone toon shade), Japanese facades, granite stone.
+// One three.js world (world.ts) posed per frame from the story timeline (story.ts). Post chain:
+//   [InkPass — off by default, re-enable with inputProps { post: { ink: true } }] -> lens blur pre + main
+//   (thin-lens DOF per shot from dofAt) -> [bloom (emissive only) + NEUTRAL tone mapping + colour grade]
+//   (one merged EffectPass), MSAA 4.
 // Ink runs before the DOF so lines blur with what they belong to; bloom after the DOF so glows defocus with their
 // source; the grade is display-referred, so it comes after tone mapping. Every pixel-sized parameter is specified at
 // 1080x1920 and scaled with the output size, so stills at --scale 0.5 and the 1440x2560 final match.
-// Place changes crossfade by stacking a second canvas for the fade frames; the hook ends on a 4-frame white flash.
+// Place changes crossfade by stacking a second canvas for the fade frames; the hook ends on a 6-frame white flash.
 import React, { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { AbsoluteFill, getInputProps, useCurrentFrame } from "remotion";
@@ -19,12 +21,14 @@ import { LensBlur, GrainEffect } from "./lensblur";
 import { GradeEffect, GRADES, GRADE_STRENGTH, gradeFor } from "./grade";
 import { Kit } from "./build";
 import { TOTAL, FLASH_AT, SHOTS, layersAt, dofAt } from "./story";
+import { Overlays } from "./Overlays";
 
 export const ANEYOSHI_FRAMES = TOTAL;
 
-/** A/B switches for test stills only (Remotion inputProps `{ post: { ink: false, ... } }`); everything is on by default. */
+/** A/B switches for test stills only (Remotion inputProps `{ post: { ink: false, ... } }`); v2 realistic look:
+ *  ink is OFF by default (the toon outline was the most cartoonish element); re-enable with `{ post: { ink: true } }`. */
 type PostToggles = { ink: boolean; lens: boolean; pre: boolean; bloom: boolean; grade: boolean; grain: boolean };
-const toggles = (): PostToggles => ({ ink: true, lens: true, pre: true, bloom: true, grade: true, grain: false, ...((getInputProps() as { post?: Partial<PostToggles> }).post ?? {}) });
+const toggles = (): PostToggles => ({ ink: false, lens: true, pre: true, bloom: true, grade: true, grain: false, ...((getInputProps() as { post?: Partial<PostToggles> }).post ?? {}) });
 
 /** Bloom for emissive sources only (depth.md 6.4). Its MIP chain always starts at 540x960 (half of 1080x1920),
  *  whatever the output size, so the glow keeps the same size relative to the frame (e-fold ~30 px at 1080p,
@@ -52,25 +56,25 @@ const Inner: React.FC<{ id: number; kit: Kit }> = ({ id, kit }) => {
   const target = useMemo(() => new THREE.Vector3(), []);
   const on = useMemo(toggles, []);
   const fx = useMemo(() => ({
-    ink: new InkPass(scene, camera as THREE.PerspectiveCamera),
+    ink: on.ink ? new InkPass(scene, camera as THREE.PerspectiveCamera) : null, // built only when on — one less render pass + GPU targets when off
     lens: new LensBlur({ maxCoC: 24, nearScale: 1.2 }),
     bloom: makeBloom(),
     tone: new ToneMappingEffect({ mode: ToneMappingMode.NEUTRAL }),
     grade: new GradeEffect(GRADES.day, GRADE_STRENGTH.day),
     grain: new GrainEffect({ amount: 0.025, cellPx: 1.5 }), // film grain, OFF by default (inputProps post.grain): the reference measures no grain and it quadruples the file size
-  }), [camera, scene]);
+  }), [camera, scene, on]);
   // InkPass cleanup must be guarded: at the first crossfade unmount (frame 68)
   // `fx.ink.dispose` is NOT a function here (observed in Actions run #2 and
   // reproduced locally), even though InkPass defines dispose() — the method is
   // gone by the time this cleanup runs. Skipping it leaks one InkPass's GPU
   // targets per crossfade (4 in the whole short); the render process is
   // short-lived, so that is acceptable. Do NOT "fix" this back to a bare call.
-  useEffect(() => () => { fx.ink.dispose?.(); }, [fx]);
+  useEffect(() => () => { fx.ink?.dispose?.(); }, [fx]);
   // EffectComposer types its children as ReactElement (not ReactNode), so no
   // conditional nulls: build the child list imperatively instead.
   const post = useMemo(() => {
     const children: React.ReactElement[] = [];
-    if (on.ink) children.push(<primitive key="ink" object={fx.ink} dispose={null} />);
+    if (on.ink && fx.ink) children.push(<primitive key="ink" object={fx.ink} dispose={null} />);
     if (on.lens && on.pre) children.push(<primitive key="pre" object={fx.lens.pre} dispose={null} />);
     if (on.lens) children.push(<primitive key="lens" object={fx.lens.main} dispose={null} />);
     if (on.bloom) children.push(<primitive key="bloom" object={fx.bloom} dispose={null} />);
@@ -112,11 +116,12 @@ const ShotView: React.FC<{ id: number; kit: Kit; alpha: number }> = ({ id, kit, 
 export const AneyoshiShort: React.FC = () => {
   const f = useCurrentFrame();
   const kit = useKit();
-  const flash = f >= FLASH_AT && f < FLASH_AT + 4 ? [1, 0.75, 0.45, 0.2][f - FLASH_AT] : 0;
+  const flash = f >= FLASH_AT && f < FLASH_AT + 6 ? [1, 0.8, 0.6, 0.4, 0.2, 0.1][f - FLASH_AT] : 0; // 6 f after the x1.519 retiming (was 4 f)
   return (
     <AbsoluteFill style={{ background: "#cfe3f2" }}>
       {layersAt(f).map((l, i) => <ShotView key={i ? "over" : "base"} id={l.id} kit={kit} alpha={l.alpha} />)}
       {flash > 0 && <AbsoluteFill style={{ background: "#ffffff", opacity: flash }} />}
+      <Overlays />
     </AbsoluteFill>
   );
 };

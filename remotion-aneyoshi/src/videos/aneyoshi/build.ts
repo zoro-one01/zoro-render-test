@@ -4,8 +4,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { D0, STONE, groundY, hillY, STONES_EAST } from "./story";
-import { brick, rng, ctex, rep, facadeHD, roofHD, stoneHD, cobbleHD, grassHD } from "./paint";
-import { twoTone } from "./shade";
+import { brick, rng, ctex, rep, facadeHD, roofHD, stoneHD, graniteHD, cobbleHD, grassHD } from "./paint";
 
 export type Kit = Record<string, THREE.Object3D>;
 export const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -20,10 +19,10 @@ export const lam = (key: string, make: () => THREE.MeshLambertMaterialParameters
     if (key === "chainHD") {
       // MAT pass: the chain material (world.ts) becomes slate blue-grey iron with a soft painted-metal highlight;
       // its Strands switch to link geometry, so links read in close-ups (bank f1780, overhead f1650)
-      const c = twoTone(new THREE.MeshPhongMaterial({ color: "#7a8490", specular: "#6c727b", shininess: 30 }));
+      const c = new THREE.MeshPhongMaterial({ color: "#7a8490", specular: "#6c727b", shininess: 30 });
       CHAIN_MATS.add(c);
       m = c as unknown as THREE.MeshLambertMaterial;
-    } else m = twoTone(new THREE.MeshLambertMaterial(make()));
+    } else m = new THREE.MeshLambertMaterial(make()); // v2: plain Lambert — the twoTone toon shade (flat cartoon lighting) is gone
     mats.set(key, m);
   }
   return m;
@@ -39,7 +38,7 @@ const toLambert = (m: THREE.Material) => {
   if (!l) {
     const s = m as THREE.MeshStandardMaterial;
     const col = m.name === "leafsGreen" ? GREENS[lamOf.size % 3] : RECOLOR[m.name];
-    l = twoTone(new THREE.MeshLambertMaterial({ color: col ? new THREE.Color(col) : s.color?.clone() ?? new THREE.Color("#ffffff"), map: s.map ?? null, side: s.side, alphaTest: s.alphaTest }));
+    l = new THREE.MeshLambertMaterial({ color: col ? new THREE.Color(col) : s.color?.clone() ?? new THREE.Color("#ffffff"), map: s.map ?? null, side: s.side, alphaTest: s.alphaTest });
     lamOf.set(m.uuid, l);
   }
   return l;
@@ -492,14 +491,17 @@ const STYLES: Style[] = [
 ];
 const roofMat = (col: string) => lam("roof" + col, () => ({ map: roofHD(col, col === "#8f97a8"), side: THREE.DoubleSide }));
 
-/** gabled house: front facade (local +z) at width w, depth d, wall height h, ridge along local x (left out if it blocks a shot) */
+/** gabled house: front facade (local +z) at width w, depth d, wall height h, ridge along local x.
+ *  v2: NO sight-line culling — the old inTheWay test removed the whole east row of the terrace
+ *  (the aerial camera's rays pass through it), so the village read as empty ground. Houses now always
+ *  stand; the cameras are framed to look between/along them instead. JP styles (si >= 8) get shoji
+ *  windows + sliding doors (facadeHD jp) and no chimney/cornice (European details). */
 export const house = (b: Batch, x: number, z: number, yaw: number, w: number, d: number, h: number, si: number, y = D0) => {
-  const across = Math.abs(Math.sin(yaw)) > 0.5, hx = (across ? d : w) / 2 + 0.6, hz = (across ? w : d) / 2 + 0.6;
-  if (inTheWay(x - hx, x + hx, y, y + h + d * 0.42 + 1.2, z - hz, z + hz)) return;
+  const jp = si >= 8;
   const st = STYLES[si % STYLES.length];
   const m = new THREE.Matrix4().makeRotationY(yaw).setPosition(x, y, z);
-  const front = lam(`hf${si}_${w}_${h}`, () => ({ map: facadeHD(`hf${si}_${w}_${h}`, w, h, { ...st, door: true }) }));
-  const side = lam(`hs${si}_${h}`, () => ({ map: facadeHD(`hs${si}_${h}`, 8, h, st) }));
+  const front = lam(`hf${si}_${w}_${h}`, () => ({ map: facadeHD(`hf${si}_${w}_${h}`, w, h, { ...st, door: true, jp }) }));
+  const side = lam(`hs${si}_${h}`, () => ({ map: facadeHD(`hs${si}_${h}`, 8, h, { ...st, jp }) }));
   const wall = lam("wall" + st.wall, () => ({ color: st.brick ? "#c8643f" : st.wall }));
   const hw = w / 2, hd = d / 2, rh = d * 0.42, o = 0.35;
   b.add(quad(V(-hw, 0, hd), V(hw, 0, hd), V(hw, h, hd), V(-hw, h, hd)), front, m);
@@ -512,8 +514,8 @@ export const house = (b: Batch, x: number, z: number, yaw: number, w: number, d:
   b.add(quad(V(-hw - o, h - 0.25, hd + o), V(hw + o, h - 0.25, hd + o), V(hw + o, h + rh, 0), V(-hw - o, h + rh, 0), ru, rv), rm, m);
   b.add(quad(V(hw + o, h - 0.25, -hd - o), V(-hw - o, h - 0.25, -hd - o), V(-hw - o, h + rh, 0), V(hw + o, h + rh, 0), ru, rv), rm, m);
   const cx = hw * 0.45 * (si % 2 ? 1 : -1);
-  b.add(boxGeo(V(cx - 0.4, h + rh * 0.3, -hd * 0.35 - 0.4), V(cx + 0.4, h + rh + 1.1, -hd * 0.35 + 0.4), 2), lam("chim", () => ({ map: rep(brick(), 1, 1) })), m);
-  houseDetail(b, m, w, d, h, rh, cx);
+  if (!jp) b.add(boxGeo(V(cx - 0.4, h + rh * 0.3, -hd * 0.35 - 0.4), V(cx + 0.4, h + rh + 1.1, -hd * 0.35 + 0.4), 2), lam("chim", () => ({ map: rep(brick(), 1, 1) })), m); // chimney: European houses only
+  houseDetail(b, m, w, d, h, rh, cx, jp);
 };
 
 // round 4: real 3D relief on every house (was a flat window-textured box): stone plinth, cornice under the eaves,
@@ -524,12 +526,14 @@ const capM = () => lam("chimCap", () => ({ color: "#9a8778" }));
 const plinthM = () => lam("plinthHD", () => ({ map: stoneHD("copeHD") }));
 const ub = (b: Batch, mat: THREE.Material, m: THREE.Matrix4, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number) =>
   b.add(UB, mat, m.clone().multiply(new THREE.Matrix4().compose(V((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), new THREE.Quaternion(), V(x1 - x0, y1 - y0, z1 - z0))));
-const houseDetail = (b: Batch, m: THREE.Matrix4, w: number, d: number, h: number, rh: number, chx: number) => {
+const houseDetail = (b: Batch, m: THREE.Matrix4, w: number, d: number, h: number, rh: number, chx: number, jp = false) => {
   const hw = w / 2, hd = d / 2, tm = trimM(), floors = Math.max(1, Math.floor(h / 2.8));
   b.add(boxGeo(V(-hw - 0.07, -0.05, -hd - 0.07), V(hw + 0.07, 0.45, hd + 0.07), 2), plinthM(), m);          // plinth
-  ub(b, tm, m, -hw - 0.12, hw + 0.12, h - 0.52, h - 0.25, hd, hd + 0.17);                                   // cornice front
-  ub(b, tm, m, -hw - 0.12, hw + 0.12, h - 0.52, h - 0.25, -hd - 0.17, -hd);                                 // cornice back
-  for (const s of [-1, 1]) ub(b, tm, m, s < 0 ? -hw - 0.17 : hw, s < 0 ? -hw : hw + 0.17, h - 0.52, h - 0.25, -hd - 0.12, hd + 0.12);
+  if (!jp) { // cornice under the eaves: European houses only (JP houses have exposed beam ends, no cornice)
+    ub(b, tm, m, -hw - 0.12, hw + 0.12, h - 0.52, h - 0.25, hd, hd + 0.17);                                   // cornice front
+    ub(b, tm, m, -hw - 0.12, hw + 0.12, h - 0.52, h - 0.25, -hd - 0.17, -hd);                                 // cornice back
+    for (const s of [-1, 1]) ub(b, tm, m, s < 0 ? -hw - 0.17 : hw, s < 0 ? -hw : hw + 0.17, h - 0.52, h - 0.25, -hd - 0.12, hd + 0.12);
+  }
   // windows: facadeHD puts nWin = floor(width / 2.2) per floor at (i + 0.5) / nWin, sill line fl * 2.8 + 0.9 m
   const wins = (len: number, door: boolean, at: (u: number) => [number, number], out: [number, number]) => {
     const n = Math.max(1, Math.floor(len / 2.2));
@@ -552,6 +556,7 @@ const houseDetail = (b: Batch, m: THREE.Matrix4, w: number, d: number, h: number
   wins(8, false, (u) => [hw - u * w, -hd], [0, -1]);          // back: side texture (8 m layout) stretched over w
   wins(8, false, (u) => [-hw, -hd + u * d], [-1, 0]);         // left side (-x): side texture is always the 8 m layout
   wins(8, false, (u) => [hw, hd - u * d], [1, 0]);            // right side (+x)
+  if (jp) return; // JP houses: no chimney cap + pot
   // chimney cap + pot
   const cz = -hd * 0.35, top = h + rh + 1.1;
   ub(b, capM(), m, chx - 0.52, chx + 0.52, top, top + 0.16, cz - 0.52, cz + 0.52);
@@ -589,7 +594,7 @@ export const flagTex = () => ctex("flagStGeorge", 256, 160, (g) => {
 /** carved inscription on the stone: horizontal grooves (abstract — no legible text; the
  *  canvas has no Japanese font in the headless renderer, so the carving reads as grooves) */
 const stoneCarveTex = () => ctex("stoneCarve", 256, 320, (g) => {
-  g.fillStyle = "#b9b3a6"; g.fillRect(0, 0, 256, 320);
+  g.fillStyle = "#8f8880"; g.fillRect(0, 0, 256, 320); // granite grey to match the graniteHD slab (v2)
   g.fillStyle = "rgba(0,0,0,0.08)";
   for (let y = 0; y < 320; y += 16) g.fillRect(0, y, 256, 2);
   for (const [y, x0, x1] of [[52, 48, 208], [88, 60, 196], [124, 52, 204], [160, 64, 192], [196, 56, 200], [232, 72, 184]] as const) {
@@ -605,13 +610,19 @@ const stoneCarveTex = () => ctex("stoneCarve", 256, 320, (g) => {
  *  passes it on the sea side, the cameras look at it from both sides) */
 export const stoneMonument = (b: Batch, x: number, y: number, z: number, h = 1.25, yaw = 0) => {
   const m = new THREE.Matrix4().makeRotationY(yaw).setPosition(x, y, z);
-  const slab = lam("stoneSlab", () => ({ map: stoneHD("slabHD", ["#b9b3a6", "#ada79a", "#c2bcb0", "#a39d90"], "#8a8478") }));
+  const slab = lam("stoneSlab", () => ({ map: graniteHD("graniteSlab", "#8a8378") })); // v2: granite monolith, not ashlar blocks
   b.add(boxGeo(V(-0.5, 0, -0.2), V(0.5, h, 0.2), 2), slab, m);
   b.add(boxGeo(V(-0.42, h, -0.18), V(0.42, h + 0.22, 0.18), 2), slab, m); // tapered cap
   const face = lam("stoneFace", () => ({ map: stoneCarveTex() }));
-  for (const s of [-1, 1])
-    b.add(quad(V(-0.44, 0.12, s * 0.21), V(0.44, 0.12, s * 0.21), V(0.44, h - 0.08, s * 0.21), V(-0.44, h - 0.08, s * 0.21)), face, m);
-  b.add(boxGeo(V(-0.65, -0.08, -0.35), V(0.65, 0.06, 0.35), 2), lam("stoneBase", () => ({ map: stoneHD("baseHD") })), m);
+  for (const s of [-1, 1]) {
+    // v2: the -z face was wound backwards (normal +z, into the stone) so the carving was invisible
+    // from the hook / deadpan cameras — reverse its point order so it faces -z.
+    const q: [THREE.Vector3, THREE.Vector3, THREE.Vector3, THREE.Vector3] = s === 1
+      ? [V(-0.44, 0.12, 0.21), V(0.44, 0.12, 0.21), V(0.44, h - 0.08, 0.21), V(-0.44, h - 0.08, 0.21)]
+      : [V(0.44, 0.12, -0.21), V(-0.44, 0.12, -0.21), V(-0.44, h - 0.08, -0.21), V(0.44, h - 0.08, -0.21)];
+    b.add(quad(q[0], q[1], q[2], q[3]), face, m);
+  }
+  b.add(boxGeo(V(-0.65, -0.08, -0.35), V(0.65, 0.06, 0.35), 2), lam("stoneBase", () => ({ map: graniteHD("graniteBase", "#7a7368") })), m);
 };
 
 /** the valley: sea, beach, a road climbing the valley floor to the terrace village,
@@ -621,34 +632,41 @@ export const buildVillage = (root: THREE.Object3D, kit: Kit, rays: Ray[] = []) =
   sight = rays;
   const pick = <T,>(a: T[]) => a[Math.floor(r() * a.length) % a.length];
   // ---- valley floor: sloped quads following groundY, x -45..45 ----
+  // v2 winding fix: quad(a,b,c,d) with a->b along +x and c at larger z gives a DOWNWARD normal
+  // (correct for a +z-facing wall, backwards for a floor) — the ground was backface-culled and the
+  // renders showed the pale page background / sky through it (no grass, no road, no blue line).
+  // Passing (d,c,b,a) flips the normal up. Same fix below: apron, east hillside, beach, road, blue line.
   const grass = lam("valleyGrass", () => ({ map: grassHD() }));
   for (const [z0, z1] of [[-90, -60], [-60, -30], [-30, 0], [0, 30], [30, 60]] as const) {
     const y0 = groundY(z0), y1 = groundY(z1);
-    b.add(quad(V(-45, y0, z0), V(45, y0, z0), V(45, y1, z1), V(-45, y1, z1), 22, 12), grass);
+    b.add(quad(V(-45, y1, z1), V(45, y1, z1), V(45, y0, z0), V(-45, y0, z0), 22, 12), grass);
   }
   // terrace apron behind the village
-  b.add(quad(V(-45, groundY(60), 60), V(45, groundY(60), 60), V(45, groundY(60) + 2, 90), V(-45, groundY(60) + 2, 90), 22, 12), grass);
+  b.add(quad(V(-45, groundY(60) + 2, 90), V(45, groundY(60) + 2, 90), V(45, groundY(60), 60), V(-45, groundY(60), 60), 22, 12), grass);
   // hillsides: one sloped quad per side per z-segment, rising 30 m from |x| = 45 to |x| = 160
+  // (the west side was already correct — its normal points up toward the valley; the east side was down/away)
   const hillG = lam("hillsideGrass", () => ({ map: grassHD() }));
   for (const s of [-1, 1]) for (const [z0, z1] of [[-90, -30], [-30, 30], [30, 90]] as const) {
     const y0 = groundY(Math.min(z0, 60)), y1 = groundY(Math.min(z1, 60));
-    b.add(quad(V(s * 45, y0, z0), V(s * 160, y0 + 30, z0), V(s * 160, y1 + 30, z1), V(s * 45, y1, z1), 40, 12), hillG);
+    const pts = [V(s * 45, y0, z0), V(s * 160, y0 + 30, z0), V(s * 160, y1 + 30, z1), V(s * 45, y1, z1)];
+    if (s === 1) pts.reverse();
+    b.add(quad(pts[0], pts[1], pts[2], pts[3], 40, 12), hillG);
   }
   // beach
   const sand = lam("beachSand", () => ({ color: "#e2c992" }));
-  b.add(quad(V(-70, 0, -100), V(70, 0, -100), V(70, 0.5, -90), V(-70, 0.5, -90), 35, 4), sand);
+  b.add(quad(V(-70, 0.5, -90), V(70, 0.5, -90), V(70, 0, -100), V(-70, 0, -100), 35, 4), sand);
   // ---- road: sloped cobble quads up the valley, x -2.2..2.2 ----
   const road = lam("roadCobble", () => ({ map: cobbleHD() }));
   for (const [z0, z1] of [[-70, -45], [-45, -20], [-20, 0], [0, 8]] as const) {
     const y0 = groundY(z0) + 0.04, y1 = groundY(z1) + 0.04;
-    b.add(quad(V(-2.2, y0, z0), V(2.2, y0, z0), V(2.2, y1, z1), V(-2.2, y1, z1), 2, 8), road);
+    b.add(quad(V(-2.2, y1, z1), V(2.2, y1, z1), V(2.2, y0, z0), V(-2.2, y0, z0), 2, 8), road);
   }
   // blue paint line: the 2011 water's farthest reach. Painted at z=-20, on dry road
   // just past the water's edge (the flat flood surface meets the rising ground at
   // z≈-22, so a line at the front z=-25 would sit 0.4 m underwater and never be seen).
   const blue = lam("blueLine", () => ({ color: "#2f6fd0" }));
   const by = groundY(-20) + 0.07;
-  b.add(quad(V(-2.2, by, -20.4), V(2.2, by, -20.4), V(2.2, by, -19.6), V(-2.2, by, -19.6)), blue);
+  b.add(quad(V(-2.2, by, -19.6), V(2.2, by, -19.6), V(2.2, by, -20.4), V(-2.2, by, -20.4)), blue); // v2: winding flipped (was culled)
   // ---- the stone + two more on the east hillside ----
   stoneMonument(b, STONE[0], STONE[1], STONE[2], 1.25, 0);
   for (const [x, y, z] of STONES_EAST) stoneMonument(b, x, y, z, 1.0, 0.5);
@@ -661,7 +679,7 @@ export const buildVillage = (root: THREE.Object3D, kit: Kit, rays: Ray[] = []) =
   ];
   for (const [x, z, yaw, si] of spots) house(b, x, z, yaw, pick([7, 8]), 7, pick([5.5, 6.2, 7]), JP[si - 8], groundY(z));
   // ---- harbor: breakwater + two boats at the shore ----
-  const harbor = lam("harborStone", () => ({ map: stoneHD("harborHD") }));
+  const harbor = lam("harborStone", () => ({ map: graniteHD("graniteHarbor", "#8a8578") })); // v2: rough granite breakwater
   b.add(boxGeo(V(-26, -0.4, -88), V(-8, 1.2, -84), 2), harbor);
   b.add(boxGeo(V(10, -0.4, -88), V(26, 1.2, -84), 2), harbor);
   const hullM = lam("boatHull", () => ({ color: "#7a4a34" }));

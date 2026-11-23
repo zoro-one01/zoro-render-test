@@ -125,6 +125,7 @@ export class World {
       wNearC: { value: new THREE.Color() }, wMidC: { value: new THREE.Color() }, wFarC: { value: new THREE.Color() },
       wCrest: { value: new THREE.Color() }, wTrough: { value: new THREE.Color() }, wGlint: { value: new THREE.Color() },
       wShade: { value: new THREE.Vector3(0.5, 0.56, 0.72) }, wNearTex: { value: wNear }, wFarTex: { value: wFar }, wTime: { value: 0 },
+      wSunDir: { value: new THREE.Vector3(0, 1, 0) }, // v2: sun direction (toward the sun) for the specular glint
     };
     const waterM = new THREE.MeshLambertMaterial({ color: 0xffffff });
     waterM.onBeforeCompile = (sh) => {
@@ -136,7 +137,7 @@ export class World {
         .replace("#include <common>", WATER_DECL)
         .replace("#include <map_fragment>", WATER_COL)
         .replace("#include <lights_fragment_begin>", "float sunVis = 1.0;\n" + LFB)
-        .replace("#include <lights_fragment_end>", "#include <lights_fragment_end>\n  reflectedLight.directDiffuse = diffuseColor.rgb * mix(wShade, vec3(1.0), sunVis);\n  reflectedLight.indirectDiffuse = vec3(0.0);");
+        .replace("#include <lights_fragment_end>", "#include <lights_fragment_end>\n  reflectedLight.directDiffuse = diffuseColor.rgb * mix(wShade, vec3(1.0), sunVis);\n  reflectedLight.indirectDiffuse = vec3(0.0);\n  vec3 wVDir = normalize(cameraPosition - vWP);\n  vec3 wHalf = normalize(wVDir + wSunDir);\n  float wGl = pow(max(dot(geometryNormal, wHalf), 0.0), 180.0);\n  reflectedLight.directSpecular = wGlint * (wGl * 0.9) * sunVis;");
     };
     waterM.customProgramCacheKey = () => "river1";
     const sea = new THREE.Mesh(quadUp(-400, 400, -400, -90, 1, 1, -D0), waterM);
@@ -202,6 +203,7 @@ export class World {
     let Rr = THREE.MathUtils.clamp(dist * 1.15 + 7, 12, 95);
     if (s.light === "golden") Rr = Math.max(Rr, 30); // el 7: 2 m cards throw ~16 m shadows, houses much longer
     this.sun.position.copy(focus).addScaledVector(sunDir, 220); this.sun.target.position.copy(focus);
+    this.WU.wSunDir.value.copy(sunDir); // water glint follows the same per-shot sun
     const sc = this.sun.shadow.camera;
     sc.left = -Rr; sc.right = Rr; sc.top = Rr; sc.bottom = -Rr; sc.near = 20; sc.far = 480; sc.updateProjectionMatrix();
     this.sun.shadow.bias = L.bias; this.sun.shadow.normalBias = L.normalBias * (Rr / 12);
@@ -301,7 +303,7 @@ export class World {
 
 const WATER_DECL = `#include <common>
 varying vec3 vWP;
-uniform vec3 wNearC, wMidC, wFarC, wCrest, wTrough, wGlint, wShade;
+uniform vec3 wNearC, wMidC, wFarC, wCrest, wTrough, wGlint, wShade, wSunDir;
 uniform sampler2D wNearTex, wFarTex;
 uniform float wTime;`;
 const WATER_COL = `

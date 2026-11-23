@@ -355,6 +355,35 @@ const STONE_PAL: Record<string, { cols: string[]; mortar: string }> = {
 };
 /** keys painted on a 2048 canvas shown at repeat 0.5: same block size and texel density, half as many repeats */
 const STONE_BIG = new Set(["towerHD", "tstoneHD", "wallHD", "stoneHD"]);
+/** Granite monolith (v2): a single carved stone — NO ashlar courses, no mortar joints. Fine speckle
+ *  (dark + light grains), large soft mottles, a few quartz veins and faint rain streaks. The slab's carved
+ *  face is painted by stoneCarveTex on top, so this is the base stone for slab/face/base/plinth/harbour. */
+export const graniteHD = (key = "graniteHD", base = "#8a8378") => ctex(key, 1024, 1024, (g, r) => {
+  const S = 1024;
+  g.fillStyle = base; g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 26; i++) { // large soft mottles (low-frequency tone variation)
+    const x = U(r, 0, S), y = U(r, 0, S), rad = U(r, 60, 200), dark = r() < 0.6;
+    blotch(g, x, y, rad, 1.3, dark ? "60,55,50" : "210,200,185", dark ? U(r, 0.05, 0.1) : U(r, 0.04, 0.08));
+  }
+  for (let i = 0; i < 9000; i++) { // fine granite speckle
+    const x = U(r, 0, S), y = U(r, 0, S), s = U(r, 0.8, 2.4), d = r() < 0.55;
+    g.fillStyle = d ? "rgba(45,40,35,0.5)" : "rgba(235,225,210,0.45)";
+    g.beginPath(); g.arc(x, y, s, 0, TAU); g.fill();
+  }
+  for (let i = 0; i < 10; i++) { // quartz veins (thin light lines)
+    let x = U(r, 0, S), y = U(r, 0, S);
+    g.strokeStyle = "rgba(220,210,195,0.28)"; g.lineWidth = U(r, 1, 2.5); g.beginPath(); g.moveTo(x, y);
+    for (let k = 0; k < 5; k++) { x += U(r, -40, 40); y += U(r, 20, 70); g.lineTo(x, y); }
+    g.stroke();
+  }
+  for (let i = 0; i < 14; i++) { // faint vertical rain streaks
+    const x = U(r, 0, S), y = U(r, 0, S * 0.7), w = U(r, 6, 18), h = U(r, 80, 260);
+    const gr = g.createLinearGradient(0, y, 0, y + h);
+    gr.addColorStop(0, "rgba(70,62,52,0.12)"); gr.addColorStop(1, "rgba(70,62,52,0)");
+    g.fillStyle = gr; g.fillRect(x, y, w, h);
+  }
+});
+
 export const stoneHD = (key = "stoneHD", cols = ["#ddd0bf", "#d3c5b3", "#e5d9c9", "#cabba8"], mortar = "#a39584") => {
   const pal = STONE_PAL[key];
   if (pal) { cols = pal.cols; mortar = pal.mortar; }
@@ -497,16 +526,16 @@ export const roofHD = (col: string, slate = false) => ctex("roofHD" + col, 1024,
  *  Ours had the right hue (#6dad37) but only fine uniform noise (autocorrelation 6 px). */
 export const grassHD = () => ctex("grassHD", 1024, 1024, (g, r) => {
   const S = 1024;
-  g.fillStyle = "#73b23d"; g.fillRect(0, 0, S, S);
+  g.fillStyle = "#5d8a42"; g.fillRect(0, 0, S, S); // muted natural green (was neon #73b23d — parent fix 2026-11-23)
   for (let i = 0; i < 16; i++) {
     const x = U(r, 0, S), y = U(r, 0, S), rad = U(r, 120, 320), light = r() > 0.5;
-    wrap2(S, S, x, y, rad * 1.4, (xx, yy) => blotch(g, xx, yy, rad, 1.4, light ? "140,198,80" : "92,154,48", 0.35));
+    wrap2(S, S, x, y, rad * 1.4, (xx, yy) => blotch(g, xx, yy, rad, 1.4, light ? "110,150,70" : "80,120,50", 0.35));
   }
   g.lineWidth = 2; g.lineCap = "round"; g.lineJoin = "round";
   for (let i = 0; i < 1400; i++) { // tufts ~90 per m2
     const x = U(r, 0, S), y = U(r, 0, S), h = U(r, 7, 16), lean = U(r, -3, 3), light = r() < 0.4;
     wrap2(S, S, x, y, 20, (xx, yy) => {
-      g.strokeStyle = light ? "rgba(165,218,98,0.35)" : "rgba(78,138,38,0.45)";
+      g.strokeStyle = light ? "rgba(140,175,90,0.35)" : "rgba(70,110,45,0.45)";
       g.beginPath(); g.moveTo(xx - 3 + lean, yy - h); g.lineTo(xx, yy); g.lineTo(xx + 3 + lean, yy - h * 0.8); g.stroke();
     });
   }
@@ -522,7 +551,7 @@ export const grassHD = () => ctex("grassHD", 1024, 1024, (g, r) => {
 /** Plaster / timber / brick facade at 96 px/m (2x the old 48, capped at 2048 px a side). Windows as in the ref:
  *  white trim with a thin dark line (no heavy ink), mid-tone blue-violet glass (never near-black), two diagonal
  *  glints, curtains in about a third, louvred shutters. Same options object as facade(). */
-export const facadeHD = (key: string, wm: number, hm: number, o: { wall: string; shutter: string; door?: boolean; timber?: boolean; brick?: boolean }) => {
+export const facadeHD = (key: string, wm: number, hm: number, o: { wall: string; shutter: string; door?: boolean; timber?: boolean; brick?: boolean; jp?: boolean }) => {
   const PX = Math.min(72, 2048 / Math.max(wm, hm)); // 72 px/m: half the GPU memory of 96 (textures.md 4)
   const W = Math.round(wm * PX), H = Math.round(hm * PX), m = (v: number) => v * PX;
   return ctex("facHD" + key, W, H, (g, r) => {
@@ -581,10 +610,39 @@ export const facadeHD = (key: string, wm: number, hm: number, o: { wall: string;
       path(0); g.strokeStyle = "rgba(40,25,15,0.7)"; g.lineWidth = 2; g.stroke();
       nail(g, cx + dw / 3, H - dh / 2, m(0.035), "#d9b04a");
     };
+    const slideDoor = (cx: number) => { // JP: rectangular sliding door (shoji paper + dark wood panels), no arch
+      const dw = m(1.1), dh = m(2.1);
+      g.fillStyle = "#e9e2d4"; g.fillRect(cx - dw / 2 - m(0.06), H - dh - m(0.06), dw + m(0.12), dh + m(0.06)); // surround
+      g.fillStyle = "#3a2a1a"; g.fillRect(cx - dw / 2, H - dh, dw, dh); // frame
+      g.fillStyle = "#f2ead8"; g.fillRect(cx - dw / 2 + m(0.05), H - dh + m(0.05), dw / 2 - m(0.05), dh - m(0.1)); // paper panel
+      g.fillStyle = "#5a4028"; g.fillRect(cx + m(0.02), H - dh + m(0.05), dw / 2 - m(0.07), dh - m(0.1)); // wood panel
+      g.fillStyle = "#3a2a1a"; // lattice on the paper panel
+      g.fillRect(cx - dw / 2 + m(0.05), H - dh / 2 - m(0.02), dw / 2 - m(0.05), m(0.04));
+      g.fillRect(cx - dw / 4 - m(0.02), H - dh + m(0.05), m(0.04), dh - m(0.1));
+      g.fillStyle = "rgba(40,25,15,0.5)"; // rails on the wood panel
+      g.fillRect(cx + m(0.02), H - dh + dh * 0.33, dw / 2 - m(0.07), m(0.03));
+      g.fillRect(cx + m(0.02), H - dh + dh * 0.66, dw / 2 - m(0.07), m(0.03));
+      g.fillStyle = "#6e4a30"; g.fillRect(cx - dw / 2 - m(0.1), H - m(0.12), dw + m(0.2), m(0.12)); // step
+    };
     for (let fl = 0; fl < floors; fl++) for (let i = 0; i < nWin; i++) {
       const cx = ((i + 0.5) * W) / nWin, by = H - m(fl * 2.8 + 0.9);
-      if (o.door && fl === 0 && i === Math.floor(nWin / 2)) { door(cx); continue; }
+      if (o.door && fl === 0 && i === Math.floor(nWin / 2)) { o.jp ? slideDoor(cx) : door(cx); continue; }
       const ww = m(0.85), wh = m(1.25), x0 = cx - ww / 2, y0 = by - wh, tr = m(0.08), sw = m(0.45);
+      if (o.jp) { // shoji: warm washi paper in a dark wood frame with a kumiko lattice — no shutters, no blue glass
+        g.fillStyle = "#3a2a1a"; g.fillRect(x0 - tr, y0 - tr, ww + 2 * tr, wh + 2 * tr); // frame
+        g.fillStyle = "#f2ead8"; g.fillRect(x0, y0, ww, wh); // paper
+        for (let k = 0; k < 5; k++) { // faint paper fibre streaks
+          g.fillStyle = "rgba(180,160,120,0.12)"; g.fillRect(x0 + ((k + 0.5) * ww) / 5, y0, m(0.02), wh);
+        }
+        g.fillStyle = "#3a2a1a"; // lattice: 2 vertical + 3 horizontal bars
+        for (let k = 1; k < 3; k++) g.fillRect(x0 + (k * ww) / 3 - m(0.02), y0, m(0.04), wh);
+        for (let k = 1; k < 4; k++) g.fillRect(x0, y0 + (k * wh) / 4 - m(0.02), ww, m(0.04));
+        const pg = g.createLinearGradient(0, y0, 0, y0 + wh); // soft shade at the bottom
+        pg.addColorStop(0, "rgba(255,255,255,0)"); pg.addColorStop(1, "rgba(90,70,50,0.18)");
+        g.fillStyle = pg; g.fillRect(x0, y0, ww, wh);
+        g.fillStyle = "#4a3826"; g.fillRect(x0 - tr - m(0.06), by + tr, ww + 2 * tr + m(0.12), m(0.07)); // wood sill
+        continue;
+      }
       for (const sx of [x0 - tr - sw - m(0.02), x0 + ww + tr + m(0.02)]) { // louvred shutters
         g.fillStyle = o.shutter; g.fillRect(sx, y0, sw, wh);
         const lw = Math.max(1.5, m(0.012));
