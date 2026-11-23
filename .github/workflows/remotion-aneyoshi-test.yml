@@ -1,0 +1,79 @@
+name: Remotion Aneyoshi test render
+
+on:
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: 'Durasi render (detik, dari frame 0)'
+        default: '5'
+        required: true
+      scale:
+        description: 'Skala output (0.5 = 540x960, 1 = 1080x1920)'
+        default: '0.5'
+        required: true
+      output:
+        description: 'Nama file MP4 hasil'
+        default: 'aneyoshi-test-5s.mp4'
+        required: true
+
+jobs:
+  render-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 60
+    env:
+      DURATION_SEC: ${{ inputs.seconds || '5' }}
+      SCALE: ${{ inputs.scale || '0.5' }}
+      OUTPUT: ${{ inputs.output || 'aneyoshi-test-5s.mp4' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install dependencies
+        working-directory: remotion-aneyoshi
+        run: npm install --no-audit --no-fund
+
+      - name: Ensure Chrome for Remotion
+        working-directory: remotion-aneyoshi
+        run: npx remotion browser ensure
+
+      - name: Render test clip
+        working-directory: remotion-aneyoshi
+        env:
+          REMOTION_TMP: ${{ github.workspace }}/remotion-tmp
+          TMPDIR: ${{ github.workspace }}/remotion-tmp
+          TEMP: ${{ github.workspace }}/remotion-tmp
+          TMP: ${{ github.workspace }}/remotion-tmp
+        run: |
+          mkdir -p "$REMOTION_TMP"
+          END=$((DURATION_SEC * 30 - 1))
+          echo "Rendering frames 0-$END (scale $SCALE)"
+          npx remotion render src/index.ts AneyoshiShort "$OUTPUT" --codec h264 --crf 16 --scale "$SCALE" --frames "0-$END"
+          ffprobe -v error -show_entries stream=codec_name,width,height -show_entries format=duration -of default=noprint_wrappers=1 "$OUTPUT"
+
+      - name: Upload test video
+        uses: actions/upload-artifact@v4
+        with:
+          name: aneyoshi-test
+          path: remotion-aneyoshi/${{ env.OUTPUT }}
+          retention-days: 1
+
+      - name: Commit MP4 to repo (direct download, no ZIP)
+        run: |
+          git config user.name "zoro-one01"
+          git config user.email "ahkmad.persib1933@gmail.com"
+          mkdir -p renders
+          cp "remotion-aneyoshi/${{ env.OUTPUT }}" "renders/${{ env.OUTPUT }}"
+          git add "renders/${{ env.OUTPUT }}"
+          git commit -m "Add Aneyoshi test ${{ env.OUTPUT }} [skip ci]" || echo "nothing to commit"
+          git fetch origin main
+          git rebase origin/main || git rebase --abort
+          git push origin HEAD:main || (git pull --rebase origin main && git push origin HEAD:main)
+          echo "MP4 langsung: https://raw.githubusercontent.com/zoro-one01/zoro-render-test/main/renders/${{ env.OUTPUT }}"
