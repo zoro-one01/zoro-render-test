@@ -1,0 +1,106 @@
+name: Remotion Aneyoshi benchmark (multisampling 0 vs 4)
+
+# Benchmark: render 150 frame YANG SAMA (shot 6 gempa, frame 1037-1186)
+# dengan multisampling 0 dan 4 secara paralel (concurrency tetap 4, pemenang
+# benchmark sebelumnya), lalu bandingkan durasi + kualitas visual.
+# multisampling = prop EffectComposer di src/videos/aneyoshi/Aneyoshi.tsx
+# (MSAA pipeline postprocessing). Job ms0 mengubah prop itu via sed SEBELUM
+# render; job ms4 membiarkan nilai default 4. Tiap job jalan di runner
+# terpisah dengan checkout sendiri, jadi sed tidak bocor antar job.
+# Hasil dibaca dari log tiap job ("BENCHMARK multisampling=... duration=...s")
+# dan dari still JPG yang di-upload bersama klip. Tidak ada file yang di-commit.
+
+on:
+  workflow_dispatch:
+    inputs:
+      frames:
+        description: 'Rentang frame yang di-benchmark (default: shot 6 gempa)'
+        default: '1037-1186'
+        required: true
+      scale:
+        description: 'Skala output (0.5 = 540x960)'
+        default: '0.5'
+        required: true
+
+jobs:
+  bench:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        multisampling: [0, 4]
+    env:
+      SCALE: ${{ inputs.scale || '0.5' }}
+      FRAMES: ${{ inputs.frames || '1037-1186' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cache node_modules (+ Chrome Headless Shell)
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: remotion-aneyoshi/node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('remotion-aneyoshi/package-lock.json') }}
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: remotion-aneyoshi
+        run: npm install --no-audit --no-fund
+
+      - name: Ensure Chrome for Remotion
+        working-directory: remotion-aneyoshi
+        run: npx remotion browser ensure
+
+      - name: Set multisampling
+        working-directory: remotion-aneyoshi
+        run: |
+          FILE="src/videos/aneyoshi/Aneyoshi.tsx"
+          if [ "${{ matrix.multisampling }}" = "0" ]; then
+            sed -i 's/multisampling={4}/multisampling={0}/' "$FILE"
+          fi
+          grep -q "multisampling={${{ matrix.multisampling }}}" "$FILE" || { echo "multisampling prop tidak ketemu nilainya"; grep -n "multisampling" "$FILE"; exit 1; }
+          echo "multisampling terpasang: ${{ matrix.multisampling }}"
+          grep -n "multisampling" "$FILE"
+
+      - name: Render benchmark
+        working-directory: remotion-aneyoshi
+        env:
+          REMOTION_TMP: ${{ github.workspace }}/remotion-tmp
+          TMPDIR: ${{ github.workspace }}/remotion-tmp
+          TEMP: ${{ github.workspace }}/remotion-tmp
+          TMP: ${{ github.workspace }}/remotion-tmp
+        run: |
+          mkdir -p "$REMOTION_TMP"
+          START=$(date +%s)
+          echo "Benchmark frames $FRAMES scale $SCALE concurrency 4 multisampling ${{ matrix.multisampling }}"
+          npx remotion render src/index.ts AneyoshiShort "bench-ms${{ matrix.multisampling }}.mp4" --codec h264 --crf 18 --scale "$SCALE" --frames "$FRAMES" --concurrency 4 --gl swangle --enable-multiprocess-on-linux --jpeg-quality 70 --x264-preset veryfast --timeout 180000
+          END=$(date +%s)
+          echo "BENCHMARK multisampling=${{ matrix.multisampling }} concurrency=4 frames=$FRAMES scale=$SCALE duration=$((END-START))s"
+          ffprobe -v error -show_entries stream=codec_name,width,height -show_entries format=duration -of default=noprint_wrappers=1 "bench-ms${{ matrix.multisampling }}.mp4"
+
+      - name: Extract stills (t=1s, 2.5s, 4s)
+        working-directory: remotion-aneyoshi
+        run: |
+          for T in 1 2.5 4; do
+            ffmpeg -y -v error -ss "$T" -i "bench-ms${{ matrix.multisampling }}.mp4" -frames:v 1 "still-ms${{ matrix.multisampling }}-t${T}.jpg"
+          done
+          ls -la still-ms${{ matrix.multisampling }}-*.jpg
+
+      - name: Upload benchmark clip + stills
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-ms${{ matrix.multisampling }}
+          path: |
+            remotion-aneyoshi/bench-ms${{ matrix.multisampling }}.mp4
+            remotion-aneyoshi/still-ms${{ matrix.multisampling }}-*.jpg
+          retention-days: 1
