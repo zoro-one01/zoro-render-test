@@ -81,7 +81,7 @@ const Inner: React.FC<{ id: number; kit: Kit }> = ({ id, kit }) => {
     children.push(<primitive key="tone" object={fx.tone} dispose={null} />);
     if (on.grade) children.push(<primitive key="grade" object={fx.grade} dispose={null} />);
     if (on.grain) children.push(<primitive key="grain" object={fx.grain} dispose={null} />);
-    return <EffectComposer multisampling={4}>{children}</EffectComposer>;
+    return <EffectComposer multisampling={0}>{children}</EffectComposer>;
   }, [fx, on]);
   const cam = camera as THREE.PerspectiveCamera;
   target.copy(world.update(id, f, cam, scene));
