@@ -1,0 +1,124 @@
+name: Remotion Garis Biru storyboard (still per camera setup)
+
+# Storyboard-first for episode #2 "Garis Biru" (11 shots, 21 camera setups,
+# TOTAL 1860 frame): render SATU still per camera setup, supaya tiap framing
+# bisa di-review SEBELUM render video penuh. Still dirender paralel (satu job
+# per still, ~30 dtk/still scale 0.5) lalu di-commit ke storyboard/garis-biru/.
+#
+# WIRING (kenapa tidak ada salinan engine di repo): engine Aneyoshi adalah
+# 4.580 baris di src/videos/aneyoshi/ dan story/Overlays episode #2 tinggal di
+# src/episodes/garis-biru/. Menyalin engine ke repo akan menduplikasi 4.580
+# baris. Sebagai gantinya, job `still` menyalin engine saat runtime
+# (cp src/videos/aneyoshi -> src/videos/garis-biru, lalu timpa story.ts +
+# Overlays.tsx dengan versi episode #2) dan me-render lewat entry khusus
+# src/garis-biru-index.tsx. Entry utama (src/index.ts) tetap Aneyoshi-only,
+# jadi workflow Aneyoshi tidak tersentuh wiring episode ini.
+# Ubah daftar frame lewat input `frames` (JSON) bila shot berubah.
+
+on:
+  workflow_dispatch:
+    inputs:
+      frames:
+        description: 'Daftar camera setup sebagai JSON: [{"key":"s01a","frame":21}, ...]'
+        default: '[{"key":"s01a","frame":21},{"key":"s01b","frame":66},{"key":"s02a","frame":180},{"key":"s02b","frame":315},{"key":"s03a","frame":420},{"key":"s03b","frame":462},{"key":"s04a","frame":580},{"key":"s05a","frame":680},{"key":"s06a","frame":780},{"key":"s06b","frame":835},{"key":"s07a","frame":930},{"key":"s07b","frame":973},{"key":"s08a","frame":1050},{"key":"s08b","frame":1112},{"key":"s09a","frame":1260},{"key":"s09b","frame":1360},{"key":"s10a","frame":1510},{"key":"s10b","frame":1580},{"key":"s11a","frame":1710},{"key":"s11b","frame":1743},{"key":"s11c","frame":1815}]'
+        required: true
+      scale:
+        description: 'Skala still (0.5 = 540x960)'
+        default: '0.5'
+        required: true
+
+jobs:
+  still:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shot: ${{ fromJSON(inputs.frames) }}
+    env:
+      SCALE: ${{ inputs.scale || '0.5' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cache node_modules (+ Chrome Headless Shell)
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: remotion-aneyoshi/node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('remotion-aneyoshi/package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: remotion-aneyoshi
+        run: npm install --no-audit --no-fund
+
+      - name: Ensure Chrome for Remotion
+        working-directory: remotion-aneyoshi
+        run: npx remotion browser ensure
+
+      - name: Prepare Garis Biru engine (runtime copy)
+        working-directory: remotion-aneyoshi
+        run: |
+          cp -r src/videos/aneyoshi src/videos/garis-biru
+          cp src/episodes/garis-biru/story.ts src/episodes/garis-biru/Overlays.tsx src/videos/garis-biru/
+          grep -q "PAINT_Z = -20" src/videos/garis-biru/story.ts || (echo "patched story.ts not found" && exit 1)
+          node scripts/validate-story.mjs src/episodes/garis-biru/story.ts
+          echo "Engine copy ready: $(ls src/videos/garis-biru/ | wc -l) files"
+
+      - name: Render still
+        working-directory: remotion-aneyoshi
+        env:
+          REMOTION_TMP: ${{ github.workspace }}/remotion-tmp
+          TMPDIR: ${{ github.workspace }}/remotion-tmp
+          TEMP: ${{ github.workspace }}/remotion-tmp
+          TMP: ${{ github.workspace }}/remotion-tmp
+        run: |
+          mkdir -p "$REMOTION_TMP"
+          FRAME=$(printf "%04d" "${{ matrix.shot.frame }}")
+          echo "Still ${{ matrix.shot.key }} frame ${{ matrix.shot.frame }} (scale $SCALE)"
+          npx remotion still src/garis-biru-index.tsx GarisBiruShort "still-${{ matrix.shot.key }}-f${FRAME}.jpg" --frame "${{ matrix.shot.frame }}" --scale "$SCALE" --image-format jpeg --gl swangle --timeout 180000
+          ls -la "still-${{ matrix.shot.key }}-f${FRAME}.jpg"
+
+      - name: Upload still
+        uses: actions/upload-artifact@v4
+        with:
+          name: still-${{ matrix.shot.key }}
+          path: remotion-aneyoshi/still-${{ matrix.shot.key }}-*.jpg
+          retention-days: 7
+
+  commit:
+    needs: still
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Clear old stills
+        run: rm -f storyboard/garis-biru/*.jpg || true
+
+      - name: Download stills
+        uses: actions/download-artifact@v4
+        with:
+          pattern: still-*
+          merge-multiple: true
+          path: storyboard/garis-biru
+
+      - name: Commit stills
+        run: |
+          git config user.name "zoro-one01"
+          git config user.email "ahkmad.persib1933@gmail.com"
+          ls -la storyboard/garis-biru/
+          git add storyboard/garis-biru/
+          git commit -m "Storyboard Garis Biru: still per camera setup [skip ci]" || echo "nothing to commit"
+          git fetch origin main
+          git rebase origin/main || git rebase --abort
+          git push origin HEAD:main || (git pull --rebase origin main && git push origin HEAD:main)
+          echo "Storyboard: https://github.com/zoro-one01/zoro-render-test/tree/main/storyboard/garis-biru"
