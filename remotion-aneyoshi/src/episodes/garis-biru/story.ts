@@ -176,22 +176,36 @@ const S5a = (f: number) => dolly([0, 17, -8], [0, 6, -60], pushK(f, 628, 0.002),
 // shot 6 (houses wait): high over the terrace, looking across the roofs down to the line and the rising water
 const S6a = (f: number) => dolly([-10, 19, 16], [0, 9, -12], pushK(f, 727, 0.0018), { fov: 42 });
 const S6b = (f: number) => dolly([-6, 17.5, 10], [0, 8.6, -18], pushK(f, 820, 0.0025, 0.006, 46), { fov: 38, roll: 0.03 }); // "tidak ada yang tahu sampai mana"
-// shot 7 (snap): at the stone, looking down the road to the waterline + blue line. Same pattern as Aneyoshi #1 S8:
-// the camera stays PUT on the punch (zoom), so the near stone never swallows the frame.
-// v2: S7a was a DOLLY, not a zoom — by f955 it had driven ~3 m toward the
-// stone, halving the stone distance and doubling its size while out of focus.
-// Now both keys are zoom from the same fixed position (Aneyoshi #1 S8 v2d),
-// and both aim at the PAINTED line (z=-20) via LINE.
-const S7a = (f: number) => zoom([STONE[0], 13.8, 12], LINE, 42, pushK(f, 912, 0.0015));
-const S7b = (f: number) => zoom([STONE[0], 13.8, 12], LINE, 42, pushK(f, 955, 0.0015)); // centred on "garis biru"
+// shot 7 (snap): from the road past the stone, looking down the road to the waterline + blue line.
+// v3 (storyboard #1: f930/f973): zoom alone did not save the shot — the stone sits 6.5 m ahead,
+// 13.8 deg off the sightline, so its blur disc (~9 deg radius, focus 32 m away, cInf 12) still
+// covered ~35-40% of the frame and hid the line. Lateral offset is blocked by the east house
+// row (wall at x=5, z 10.5-17.5), so the camera moves 12 m FORWARD along the road (z 12 -> 0):
+// the stone ends up 6 m BEHIND the lens, the line is 20.7 m ahead and centred, Kimura (3.4,9)
+// is behind the camera too (he gets his shot in S8). Zoom pattern unchanged.
+const S7a = (f: number) => zoom([STONE[0], 13.8, 0], LINE, 42, pushK(f, 912, 0.0015));
+const S7b = (f: number) => zoom([STONE[0], 13.8, 0], LINE, 42, pushK(f, 955, 0.0015)); // centred on "garis biru"
 // shot 8 (deadpan): stone + Kimura, then his face on "Sialnya"
-const S8a = (f: number) => dolly([6.6, 13.2, 1.6], [3.4, 12.4, 7], pushK(f, 998, 0.002), { fov: 40 });
-const S8b = (f: number) => dolly([5.6, 12.9, 3.2], [3.6, 12.5, 7.2], pushK(f, 1094, 0.0025), { fov: 36, roll: 0.03 });
+// v3 (storyboard #1: f1050/f1112 — Kimura invisible): ROOT CAUSE is the shot-id shift.
+// kimuraAt() in the shared engine places Kimura by shot id: id 8 = on the road (1,2)
+// watching the water, id 9 = beside the stone (3.4,9) facing camera. In Aneyoshi #1 the
+// deadpan IS shot 9, so the old S8 camera (copied from Aneyoshi S9) aimed at (3.4,7) was
+// right. In Garis Biru the deadpan is shot 8, so Kimura stands at (1,2) — 54.8 deg off
+// the old camera's axis, far outside the 9:16 half-width (~12 deg). The camera (not the
+// shared cast.ts) is re-aimed: S8a frames Kimura (8.3 deg) + stone (6.1 deg) together
+// from [8,14,-8]; S8b punches to Kimura's eyes (1,12.4,2). DOF focus follows.
+const S8a = (f: number) => dolly([8, 14, -8], [1.75, 12, 4], pushK(f, 998, 0.002), { fov: 44 });
+const S8b = (f: number) => dolly([4, 13.3, 0], [1, 12.4, 2], pushK(f, 1094, 0.0025), { fov: 36, roll: 0.03 });
 // shot 9 (explanation): from the road, the stone up at the terrace edge; CUT to its carved face
 const S9a = (f: number) => dolly([-3.2, 12.0, -8], [STONE[0], STONE[1] + 0.9, STONE[2]], pushK(f, 1195, 0.0018), { fov: 40 });
 const S9b = (f: number) => dolly([5.2, 12.7, 2.4], [STONE[0] + 0.2, STONE[1] + 0.5, STONE[2]], pushK(f, 1330, 0.0025), { fov: 36 });
 // shot 10 (consequence): aerial over the dry roofs, then down the road to the line
-const S10a = (f: number) => dolly([-12, 24, 26], [0, 12, 12], pushK(f, 1454, 0.0015), { fov: 42 });
+// v3 (storyboard #1: f1510): old S10a sat 5.7 m from the (-9,22) roof, 5.2 deg off-axis —
+// one dark roof filled ~70% of the frame and every other house was >30 deg off-axis.
+// New S10a is a row-along aerial: high over the valley south of the village, looking north
+// down the west row — 4 roofs at 2.2-9.9 deg off-axis (41-77 m away, 6-11 deg wide),
+// east row out of frame. If the row still does not read, fallback is top-down over the terrace.
+const S10a = (f: number) => dolly([-9, 32, -30], [-9, 13, 30], pushK(f, 1454, 0.0015), { fov: 44 });
 const S10b = (f: number) => dolly([5, 16.5, -2], LINE, pushK(f, 1562, 0.002, 0.005, 40), { fov: 42, roll: -0.03 }); // "Jalan di bawah garis basah"
 // shot 11 (callback, golden): the hook framing again, then crane out over the road to the village
 // Same framing as the fixed S1 (hook), so the callback inherits the fix.
@@ -288,7 +302,7 @@ export const DOF: Dof[] = [
   { f: 394, cInf: 10, focus: () => [0, 12.5, 8] }, // quake street
   { f: 530, cInf: 0 }, // the water climbs / swallows the road / houses wait (wide, shots 4-6)
   { f: 912, cInf: 12, focus: () => LINE }, // snap: the blue line (painted, z=-20)
-  { f: 998, cInf: 14, focus: () => [3.6, 12.5, 7.2] }, // deadpan: Kimura's eyes
+  { f: 998, cInf: 14, focus: () => [1, 12.4, 2] }, // deadpan: Kimura's eyes (Garis Biru: Kimura stands at (1,2))
   { f: 1195, cInf: 6, focus: () => [STONE[0], STONE[1] + 0.9, STONE[2]] }, // explanation: the stone from the road
   { f: 1330, cInf: 12, focus: () => [STONE[0] + 0.2, STONE[1] + 0.5, STONE[2]] }, // the carved face
   { f: 1454, cInf: 0 }, // consequence: roofs, sharp
